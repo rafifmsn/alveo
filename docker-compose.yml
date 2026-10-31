@@ -1,0 +1,68 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: alveo-app
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      DB_CONNECTION: ${DB_CONNECTION:-pgsql}
+      DB_HOST: ${DB_HOST:-db}
+      DB_PORT: ${DB_PORT:-5432}
+      DB_DATABASE: ${DB_DATABASE:-alveo}
+      DB_USERNAME: ${DB_USERNAME:-alveo}
+      DB_PASSWORD: ${DB_PASSWORD:-alveo_secret}
+      CACHE_STORE: database
+      SESSION_DRIVER: database
+    ports:
+      - "127.0.0.1:${APP_PORT:-8085}:8000"
+    volumes:
+      - .:/var/www/html
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - alveo-net
+
+  db:
+    image: postgres:16-alpine
+    container_name: alveo-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DB_DATABASE:-alveo}
+      POSTGRES_USER: ${DB_USERNAME:-alveo}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-alveo_secret}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME:-alveo} -d ${DB_DATABASE:-alveo}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - alveo-net
+
+  adminer:
+    image: adminer:latest
+    container_name: alveo-adminer
+    restart: unless-stopped
+    environment:
+      ADMINER_DEFAULT_SERVER: db
+      ADMINER_DESIGN: pepa-linha
+    ports:
+      - "127.0.0.1:${ADMINER_PORT:-8080}:8080"
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - alveo-net
+
+volumes:
+  pgdata:
+
+networks:
+  alveo-net:
+    driver: bridge
+

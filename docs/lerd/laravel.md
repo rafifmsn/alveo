@@ -1,0 +1,211 @@
+---
+date: "2026-10-31T09:06:20+07:00"
+source: "https://lerd.sh/getting-started/laravel"
+---
+
+# Page Structure Map
+
+```text
+- Laravel walkthrough [​](#laravel-walkthrough)
+- 1\. Create the project [​](#_1-create-the-project)
+- 3\. Configure PHP, Node, database, services [​](#_3-configure-php-node-database-services)
+- 4\. Bootstrap the project [​](#_4-bootstrap-the-project)
+- 5\. Verify [​](#_5-verify)
+- What just happened [​](#what-just-happened)
+- Reverb (optional) [​](#reverb-optional)
+- FrankenPHP / Octane (optional) [​](#frankenphp-octane-optional)
+```
+
+---
+
+## Laravel walkthrough [​](#laravel-walkthrough)
+
+End-to-end: from `lerd install` to a Laravel app running on `https://myapp.test` with a database, queue worker, and scheduler.
+
+Prerequisites
+
+You've already run `lerd install` once on this machine. If not, see [Installation](https://lerd.sh/getting-started/installation).
+
+Drive it from your AI assistant
+
+Run `lerd mcp:enable-global` once and your AI assistant (Claude Code, Cursor, Junie, Codex, Gemini, Copilot, Antigravity, Windsurf) can call every command below through the grouped MCP tools: `framework` `action: "project_new"`, `site` `action: "link"`, `env` `action: "setup"`, `framework` `action: "setup"`, `db` `action: "create"`, `site` `action: "tls_enable"`, `worker`, etc. See [AI Integration](https://lerd.sh/features/mcp).
+
+---
+
+## 1\. Create the project [​](#_1-create-the-project)
+
+Lerd ships with the official Laravel installer, available in your shell after `lerd install`:
+
+bash
+
+```
+cd ~/Lerd
+laravel new myapp
+```
+
+bash
+
+```
+cd ~/Lerd
+lerd new myapp
+# runs: composer create-project laravel/laravel:^13.0 ./myapp
+```
+
+bash
+
+```
+cd ~/Lerd
+git clone git@github.com:you/myapp.git
+```
+
+The `laravel new` installer walks you through starter kit, auth, and database choices interactively. `lerd new` is the framework-agnostic alternative: it runs the bare `composer create-project` so you skip the installer's prompts.
+
+---
+
+bash
+
+```
+cd myapp
+lerd link
+```
+
+`lerd link` registers `myapp` and assigns it `http://myapp.test` automatically. No `/etc/hosts` edits, DNS is handled by lerd's built-in DNS server.
+
+Already parked?
+
+If `~/Lerd` was registered with `lerd park ~/Lerd` earlier, every subdirectory under it is auto-linked. You can skip `lerd link` entirely.
+
+---
+
+## 3\. Configure PHP, Node, database, services [​](#_3-configure-php-node-database-services)
+
+Run the init wizard from inside the project:
+
+bash
+
+```
+lerd init
+```
+
+```
+? PHP version: 8.5
+? Node version (clear to follow the lerd default instead of pinning): 22
+? Enable HTTPS? Yes
+? Database: MySQL (lerd-mysql)
+? Services: [redis, mailpit]
+? Workers to auto-start: [queue, schedule]
+Saved .lerd.yaml
+```
+
+The **Database** select lists every recognised DB family installed on your machine: SQLite, the built-in MySQL and PostgreSQL, plus any preset alternates you've installed (e.g. `MySQL 5.7 (lerd-mysql-5-7)`, `MariaDB 11 (lerd-mariadb-11)`, `MongoDB (lerd-mongo)`). Pick the version that matches production. The **Services** multi-select hides admin UIs like phpMyAdmin / pgAdmin / Mongo Express; those are global developer tools, not project services, so they don't belong in `.lerd.yaml`.
+
+The wizard writes everything to `.lerd.yaml` in the project root. Services that came from a preset are stored as a small reference like:
+
+yaml
+
+```
+services:
+  - mysql:
+      preset: mysql
+      version: "5.6"
+  - redis
+```
+
+Commit that file; on any other machine, `lerd link` reads it, installs the referenced preset locally if it isn't already, and restores the same setup without re-running the wizard.
+
+See [Project Setup](https://lerd.sh/features/project-setup) for the full wizard reference.
+
+---
+
+## 4\. Bootstrap the project [​](#_4-bootstrap-the-project)
+
+bash
+
+```
+lerd setup
+```
+
+`lerd setup` reads `.lerd.yaml` and shows a checkbox list, pre-selecting every step that's actually needed:
+
+```
+? Select setup steps to run:
+  ◉ composer install
+  ◉ npm ci
+  ◉ lerd env                     # writes DB_*, REDIS_*, MAIL_* into .env
+  ◉ php artisan migrate
+  ◯ php artisan db:seed
+  ◉ php artisan storage:link
+  ◉ npm run build
+  ◉ lerd secure                  # issues mkcert TLS for myapp.test
+  ◉ queue:start
+  ◉ schedule:start
+  ◉ lerd open
+```
+
+Press enter and watch them run. When it's done, the browser opens at `https://myapp.test` and the queue + scheduler are running as systemd user services.
+
+One-shot
+
+`lerd setup --all` skips the prompt and runs every selected step. Useful in scripts or after a fresh clone on CI.
+
+---
+
+## 5\. Verify [​](#_5-verify)
+
+bash
+
+```
+lerd status
+```
+
+You should see `myapp` listed as `active`, the configured services running, and the queue/schedule workers as `running`. Live logs are in the [Web UI](https://lerd.sh/features/web-ui) at `http://127.0.0.1:7073` under the **App Logs** tab for `myapp`.
+
+---
+
+## What just happened [​](#what-just-happened)
+
+| Command                                        | What it did                                                                                  |
+| ---------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| `lerd link`                                    | Registered `myapp.test` with nginx + lerd-dns                                                |
+| `lerd init`                                    | Wrote `.lerd.yaml` with PHP 8.5, Node 22, MySQL, Redis, Mailpit, queue, schedule             |
+| `lerd env` (via setup)                         | Injected `DB_HOST=lerd-mysql`, `REDIS_HOST=lerd-redis`, `MAIL_HOST=lerd-mailpit` into `.env` |
+| `lerd db:create` (via env)                     | Created `myapp` and `myapp_testing` databases                                                |
+| `lerd secure` (via setup)                      | Issued an mkcert cert, switched the vhost to HTTPS, set `APP_URL=https://myapp.test`         |
+| `lerd worker start queue/schedule` (via setup) | Launched `lerd-queue-myapp` and `lerd-schedule-myapp` systemd units                          |
+
+---
+
+## Reverb (optional) [​](#reverb-optional)
+
+If your project uses Laravel Reverb (`composer require laravel/reverb`), a third worker toggle appears automatically in the UI and `lerd setup` step list. Each Reverb-enabled site gets its own `REVERB_SERVER_PORT` starting at `8080`, written to `.env` on first run so multiple Reverb sites can coexist.
+
+bash
+
+```
+lerd worker start reverb
+```
+
+---
+
+## FrankenPHP / Octane (optional) [​](#frankenphp-octane-optional)
+
+By default your site runs on the shared PHP-FPM stack. If you want the persistent-process speedup, switch to a per-site FrankenPHP container:
+
+bash
+
+```
+lerd runtime frankenphp            # classic mode, one process per request
+lerd runtime frankenphp --worker   # Laravel Octane, keeps the app in memory
+lerd runtime fpm                   # back to shared PHP-FPM
+```
+
+Worker mode needs `composer require laravel/octane` in the project. FrankenPHP is an alternative to PHP-FPM, not a different framework, so queues, scheduler, Reverb, and services keep working unchanged. See the [FrankenPHP runtime](https://lerd.sh/features/frankenphp) page for the hot-reload tradeoffs.
+
+---
+
+- [Frameworks & Workers](https://lerd.sh/usage/frameworks): add Horizon, Pulse, or other custom workers
+- [Database](https://lerd.sh/usage/database): `lerd db:import`, `lerd db:shell`, switching engines
+- [Services](https://lerd.sh/usage/services): start Meilisearch, RustFS (S3), Postgres, custom services
+- [Browser Testing](https://lerd.sh/usage/browser-testing): run Laravel Dusk with Selenium, no local Chrome needed
+- [HTTPS](https://lerd.sh/features/https): wildcard certs for git worktrees
+- [AI Integration (MCP)](https://lerd.sh/features/mcp): drive lerd from Claude Code, Cursor, etc.

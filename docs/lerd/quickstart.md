@@ -1,0 +1,392 @@
+---
+date: "2026-10-31T09:05:50+07:00"
+source: "https://lerd.sh/getting-started/quick-start"
+---
+
+# Page Structure Map
+
+```text
+- Installation [​](#installation)
+- Linux [​](#linux)
+  - Install from a local build [​](#install-from-a-local-build)
+  - Install via apt (Ubuntu/Debian) [​](#install-via-apt-ubuntu-debian)
+  - Install via dnf (Fedora) [​](#install-via-dnf-fedora)
+  - Install via Homebrew [​](#install-via-homebrew)
+  - Update [​](#update)
+  - Uninstall [​](#uninstall)
+  - Check prerequisites only [​](#check-prerequisites-only)
+- macOS [​](#macos)
+  - Install via Homebrew (alternative) [​](#install-via-homebrew-alternative)
+  - Update [​](#update-1)
+  - Lerd in the app list [​](#lerd-in-the-app-list)
+  - Uninstall [​](#uninstall-1)
+- Windows (beta) [​](#windows-beta)
+- NixOS [​](#nixos)
+- Desktop app (optional) [​](#desktop-app-optional)
+```
+
+---
+
+## Installation [​](#installation)
+
+## Linux [​](#linux)
+
+Requires systemd
+
+Lerd runs every container as a Podman Quadlet and every worker as a systemd user service, so a systemd-based distro is required. OpenRC (Gentoo, Artix-openrc, Alpine), runit (Void, Artix-runit), s6, and sysvinit-based distros (Devuan) are not supported.
+
+Tested and known-good: Ubuntu, Fedora, Arch, Debian, Mint, Pop!\_OS, openSUSE, CachyOS, Omarchy. Any systemd distro should work.
+
+bash
+
+```
+curl -fsSL https://lerd.sh/install.sh | bash
+```
+
+bash
+
+```
+wget -qO- https://lerd.sh/install.sh | bash
+```
+
+bash
+
+```
+git clone https://github.com/lerd-env/lerd
+cd lerd
+make build
+make install            # installs to ~/.local/bin/lerd
+make install-installer  # installs lerd-installer to ~/.local/bin/
+```
+
+The installer will:
+
+- Check and offer to install missing prerequisites (Podman, NetworkManager, unzip)
+- Download the latest `lerd` binary for your architecture (amd64 / arm64)
+- Install it to `~/.local/bin/lerd`
+- Add `~/.local/bin` to your shell's `PATH` (bash, zsh, or fish)
+- Automatically run `lerd install` to complete environment setup
+
+Setup asks for sudo once, up front
+
+Everything `lerd install` needs root for happens in one step at the very start, before any downloading or container work: the unprivileged-port sysctl so nginx can bind 80 and 443, systemd linger so your containers survive logout, and a passwordless sudoers rule for the DNS resolver operations. It runs as `sudo lerd bootstrap --system`, the same command the apt package runs as root, so both routes apply identical settings. The mkcert CA is trusted in the system store the same way once it has been generated.
+
+Reinstalling for an update or a test reuses what is already in place and does not ask again, and if a step cannot run through `sudo` it falls back to prompting for each one separately. Uninstalling takes the sudoers rule and the CA back out, so both last exactly as long as lerd does, including a rule a package's `lerd bootstrap --system` wrote.
+
+After install, reload your shell or open a new terminal so `PATH` takes effect.
+
+On Omarchy a fresh install also turns the system tray off (`lerd tray off`) and adds the [Lerd Glance](https://github.com/lerd-env/lerd-omarchy-glance) plugin to the bar, which shows the same state where Omarchy already keeps it. `lerd tray on` brings the tray back.
+
+`lerd install` will:
+
+1.  Check that the host ports lerd binds first (HTTP 80, HTTPS 443, DNS 5300) are free
+2.  Create XDG config and data directories
+3.  Create the `lerd` Podman network
+4.  Download static binaries: Composer, fnm, mkcert
+5.  Install the mkcert CA into your system trust store
+6.  Write and start the `lerd-dns` and `lerd-nginx` Podman Quadlet containers
+7.  Enable the `lerd-watcher` background service (auto-discovers new projects)
+8.  Add `~/.local/share/lerd/bin` to your shell's `PATH`
+
+The downloaded tools are pinned to explicit versions, so a fresh install always gets the same Composer, fnm and mkcert regardless of what upstream shipped that day. The pins live in a small manifest published in the lerd repository: the binary fetches it before downloading and falls back to its embedded copy when offline, so a broken pin can be fixed for every install without waiting for a release. Downloads retry transient network and server errors with a short backoff, and a stalled transfer is cancelled and retried instead of hanging, so a momentary CDN hiccup doesn't abort the install. Already-installed tools are never touched by an upgrade; `lerd status` shows their versions and `lerd tools:update` brings them to the current pins when you want that. That includes the mise lerd installs as the Node manager when the host has none; a mise you installed yourself stays yours, and lerd never lists or replaces it.
+
+Running alongside Laravel Herd or another local stack
+
+If another tool is already serving sites on ports 80/443 (Laravel Herd, a system nginx/Apache) or holding the DNS port, install prints a warning naming each busy port and how to find the process. Install still continues, so stop the other stack to free the ports first, otherwise `lerd-nginx` and `lerd-dns` will fail to start.
+
+---
+
+### Install from a local build [​](#install-from-a-local-build)
+
+If you built from source and want to skip the GitHub download:
+
+bash
+
+```
+make build
+bash install.sh --local ./build/lerd
+```
+
+---
+
+### Install via apt (Ubuntu/Debian) [​](#install-via-apt-ubuntu-debian)
+
+Lerd is published to a Launchpad PPA, so you can install and update it with your package manager. The PPA publishes for every Ubuntu release in standard support and for the current development release; on one of those:
+
+bash
+
+```
+sudo add-apt-repository ppa:lerd/lerd
+sudo apt update
+sudo apt install lerd
+```
+
+On other Ubuntu releases
+
+On a release the PPA does not publish for, `add-apt-repository` leaves behind a source entry that fails every later `apt update` with `does not have a Release file`. Remove it with `sudo add-apt-repository --remove ppa:lerd/lerd` and use the [script installer](#one-line-installer-recommended) instead.
+
+The package installs the binary to `/usr/bin/lerd` and finishes setup automatically: its maintainer script enables the unprivileged-port sysctl and systemd linger, then runs `lerd install` for your user, so the stack comes up straight away and again at every boot. `.test` DNS and HTTPS are configured with no prompt because the package sets up the sudoers rule and trusts the mkcert CA as root.
+
+Updates come through apt like any other package:
+
+bash
+
+```
+sudo apt upgrade
+```
+
+A package-installed lerd lives under `/usr`, so `lerd update` (which self-replaces a `~/.local/bin` install) detects it and defers to your package manager instead of fighting it.
+
+The setup steps behind the package are not Debian-specific: `lerd bootstrap` recognises the Debian, Fedora, Arch and openSUSE trust store layouts and picks whichever the system uses, so the same flow serves the deb and rpm packages alike and will serve a future AUR package. On distros with no writable system trust store (NixOS), it prints where the CA lives so you can trust it declaratively.
+
+It is also not package-specific. A normal `lerd install` runs the same `lerd bootstrap` steps through `sudo` rather than through a maintainer script, so the machine ends up in the same state however you installed.
+
+---
+
+### Install via dnf (Fedora) [​](#install-via-dnf-fedora)
+
+Lerd is published to the [`georged/lerd`](https://copr.fedorainfracloud.org/coprs/georged/lerd/) Fedora COPR, which builds for every Fedora release in standard support and for rawhide (the project follows Fedora branching, so new releases are picked up automatically):
+
+bash
+
+```
+sudo dnf copr enable georged/lerd
+sudo dnf install lerd
+```
+
+The package behaves exactly like the apt one: it installs the binary to `/usr/bin/lerd`, its scriptlet runs the same root-level bootstrap and per-user install, and `.test` DNS and HTTPS come up with no prompt.
+
+Updates come through dnf like any other package:
+
+bash
+
+```
+sudo dnf upgrade
+```
+
+As with apt, a package-installed lerd lives under `/usr`, so `lerd update` defers to your package manager.
+
+---
+
+### Install via Homebrew [​](#install-via-homebrew)
+
+Homebrew on Linux works too:
+
+bash
+
+```
+brew install lerd-env/lerd/lerd
+lerd install
+```
+
+Unlike on macOS, Podman is not pulled in as a Homebrew dependency: lerd integrates with the distribution's own Podman, so install that with your package manager first. Homebrew itself needs its usual Linux prerequisites, notably a C compiler such as gcc, even though the formula only unpacks a prebuilt binary. If Homebrew refuses the tap as untrusted, run `brew trust lerd-env/lerd` once.
+
+Update with `brew upgrade lerd`. Homebrew installs every version into its own directory, so an upgrade moves the binary; the formula repoints the user services and the shims at the new location as part of the upgrade and restarts the daemons, so an unattended upgrade leaves nothing broken behind it. The rest of the environment is reapplied by the first lerd command you run at a terminal afterwards.
+
+---
+
+### Update [​](#update)
+
+bash
+
+```
+lerd update
+```
+
+Fetches the latest release from GitHub, downloads the binary for your architecture, and atomically replaces the running binary. No restart needed.
+
+This applies to script and source installs in `~/.local/bin`. On a packaged install the binary is owned by apt or dnf, so `lerd update` prints that package manager's upgrade command instead of self-replacing; a Homebrew install updates with `brew upgrade lerd`.
+
+Replacing the binary is only half of an update: quadlets, DNS, nginx config, the user services and the shims all have to be reapplied, which `lerd update` does for you by re-running `lerd install`. A package manager does none of that, so the first lerd command you run at a terminal after the new binary lands reapplies it for you and says so. It runs once per version, and never on a machine where `lerd install` has not run yet, in a script, or from a daemon.
+
+You can also re-run the installer:
+
+bash
+
+```
+curl -fsSL https://lerd.sh/install.sh | bash -s -- --update
+```
+
+bash
+
+```
+wget -qO- https://lerd.sh/install.sh | bash -s -- --update
+```
+
+Betas are published as GitHub prereleases, which the plain installer skips, so `--beta` is how you ask for one:
+
+bash
+
+```
+curl -fsSL https://lerd.sh/install.sh | bash -s -- --beta
+```
+
+bash
+
+```
+wget -qO- https://lerd.sh/install.sh | bash -s -- --beta
+```
+
+It works on a first install and alongside `--update`, and it takes the newest release of either kind, so once the stable version overtakes the beta line `--beta` installs the stable one. Running the installer without it on a machine already on a prerelease asks before moving you back to stable, rather than downgrading silently.
+
+Once you are on a beta you stay on the beta line without asking again: `lerd update` offers the next prerelease, and the update notice in the status line, the dashboard and the tray follows it too. The stable release of that cycle outranks the betas it supersedes, so it is what ends the run and puts you back on stable.
+
+To be offered betas while still on a stable version, turn on **Beta updates** on the dashboard's Lerd page, or run `lerd update:beta on` (`off` puts you back on stable-only, `lerd update:beta` reports where you are). It changes what you are offered, not what you are running: the next `lerd update` is what moves you, and the notice starts naming betas as soon as one is published.
+
+Running something older than 1.26?
+
+`lerd update` fails on builds from before the project moved to the lerd-env organisation, with an error about an unexpected release URL. [Updating from a version before 1.26](https://lerd.sh/getting-started/updating-from-pre-1.26) gets you across in one step.
+
+---
+
+### Uninstall [​](#uninstall)
+
+bash
+
+```
+lerd uninstall
+```
+
+Stops all containers, disables and removes Quadlet units, removes the watcher service, removes the binary, tears down the `lerd` podman network (including aardvark-dns runtime state), and cleans up the `PATH` entry from your shell config. It also deletes `/etc/sysctl.d/99-lerd-ports.conf` through `sudo`, so the lowered unprivileged port start that let Podman bind 80 and 443 no longer applies after the next reboot. On distros that build the initramfs with dracut (Fedora, Ubuntu 26.04), the image carries its own copy of the drop-in and applies it at boot until it is rebuilt, so uninstall prints `sudo dracut -f` when it finds one there.
+
+Four opt-in prompts before finishing:
+
+1.  **Remove all config and data**: deletes `~/.config/lerd` and `~/.local/share/lerd` (takes your `sites.yaml`, bundled binaries, TLS certs, and all service data with it). Global npm packages that the `npm` shim installed into lerd's managed prefix are not silently lost: when a system npm exists you're offered a reinstall into your own prefix first, and otherwise the exact `npm install -g …` line to run afterwards is printed. Keeping them also keeps a note of the built-in services that were installed, so the next install brings back the ones no site lists as well, unless you have removed one with `lerd service remove` since.
+2.  **Remove MCP integration**: unregisters lerd from Claude Code, Cursor, Windsurf, and Junie at user scope, removes `~/.claude/skills/lerd/`, `~/.cursor/rules/lerd.mdc`, and strips the lerd block from `~/.junie/guidelines.md`. Also runs across every registered site to clean the same files per-project.
+3.  **Uninstall mkcert CA**: runs `mkcert -uninstall` so browsers and OS trust stores stop trusting the lerd CA that `install` originally added.
+4.  **Purge lerd-built container images**: removes `lerd-php*-fpm:local`, `lerd-custom-*:local`, and `lerd-dnsmasq:local`. Upstream pulled images (mysql/redis/postgres/etc.) are deliberately left alone; they're expensive to re-pull and your database/app data lives in host bind mounts, not inside the images, so nothing is lost by keeping them.
+
+To answer yes to every prompt without interaction:
+
+bash
+
+```
+lerd uninstall --force
+```
+
+To uninstall without prompts but keep your config, databases and images for a later reinstall, the unattended form of answering no to prompts 1 and 4 and yes to 2 and 3:
+
+bash
+
+```
+lerd uninstall --keep-data
+```
+
+Run without a terminal and without either flag, `lerd uninstall` cannot ask, so it stops before touching anything and exits with an error.
+
+If lerd came from apt, dnf or Homebrew, the teardown is the same but the binary stays where it is: deleting a file the package manager owns would leave it believing lerd is still installed. `lerd uninstall` prints the matching removal command at that step, so finish with `sudo apt remove lerd`, `sudo dnf remove lerd` or `brew uninstall lerd`.
+
+On Omarchy `lerd uninstall` also takes the Lerd Glance plugin off the bar.
+
+The installer's `--uninstall` runs `lerd uninstall`, so it does exactly the same teardown.
+
+---
+
+### Check prerequisites only [​](#check-prerequisites-only)
+
+bash
+
+```
+bash install.sh --check
+```
+
+---
+
+## macOS [​](#macos)
+
+bash
+
+```
+curl -fsSL https://lerd.sh/install.sh | bash
+```
+
+bash
+
+```
+wget -qO- https://lerd.sh/install.sh | bash
+```
+
+The same installer powers Linux and macOS. On macOS it will:
+
+- Check for the `podman` CLI and offer to `brew install podman` if it's missing
+- Download the latest `darwin` binary for your architecture (amd64 / arm64)
+- Install it to `~/.local/bin/lerd` and add that directory to your `PATH`
+- Automatically run `lerd install`, which starts Podman Machine, mkcert, DNS, and nginx
+- Put a **Lerd** app in `~/Applications` (see [Lerd in the app list](#lerd-in-the-app-list))
+
+Homebrew is only used for Podman
+
+The installer itself doesn't require Homebrew. It's used only to install the `podman` dependency when it isn't already present, so you can also install Podman by any other means beforehand.
+
+### Install via Homebrew (alternative) [​](#install-via-homebrew-alternative)
+
+bash
+
+```
+brew install lerd-env/lerd/lerd
+lerd install
+```
+
+Podman is installed automatically as a Homebrew dependency.
+
+Untrusted tap
+
+Recent Homebrew versions refuse to load formulae from third-party taps until they're trusted. If you see `Refusing to load formula ... from untrusted tap`, run `brew trust lerd-env/lerd` once, then retry.
+
+### Update [​](#update-1)
+
+bash
+
+```
+lerd update
+```
+
+If you installed via Homebrew instead, update with `brew upgrade lerd`. The `lerd install` that finishes an update is applied for you by the first lerd command you run at a terminal afterwards, and running it yourself does no harm.
+
+If you're running a local development build (a `git describe` version like `1.25.0-6-g7d03`), the one-line installer and `--update` detect it and ask before replacing it with a release binary, so an ahead-of-release build isn't overwritten silently. Decline to keep your build, or reinstall one explicitly with `install.sh --local <path>`. A beta is not a development build and is left alone by that check; it has its own prompt, and `--beta` skips it by saying which line you want.
+
+### Lerd in the app list [​](#lerd-in-the-app-list)
+
+`lerd install` writes a small **Lerd** app to `~/Applications`, so lerd shows up in Launchpad, Spotlight and Finder alongside everything else. Clicking it starts lerd if it isn't running and then opens the dashboard, which means the environment can be brought up without ever opening a terminal. If lerd is already serving it goes straight to the dashboard.
+
+A start takes the better part of a minute, so the app shows a native progress window while it runs, naming each unit as it comes up and counting them off against the total. It waits for the start to actually finish rather than for nginx to answer, because the vhost is up well before the databases behind it and a dashboard opened at that moment shows sites returning 500. Nothing about it is a browser window: it is a real application, built at install time with the `osacompile` that ships with macOS.
+
+It is a launcher, not a second copy of lerd: it drives the same start the CLI does and hands the opening to `lerd dashboard`. Every `lerd install` and `lerd update` rebuilds it so it keeps pointing at the binary that is live, and `lerd uninstall` removes it.
+
+On **Linux** the same thing is a desktop entry at `~/.local/share/applications/lerd.desktop`, listed as **Lerd** in whatever your desktop uses to show applications. If you also have the Lerd desktop app, which ships an entry under that name of its own, this one is listed as **Start Lerd** instead so you are not looking at two identical icons. The app's entry is left alone rather than replaced, because it owns the `lerd://` association that lerd uses to open it. The name is decided when the entry is written, so installing the app afterwards is worth a `lerd install` to settle it. Clicking it behaves the same way: the environment starts if it is down, and then the Lerd desktop app opens if you have it installed, or your browser on the dashboard if you do not. Progress is reported through a desktop notification that rewrites itself as each unit comes up, which uses the same session bus lerd already posts its other notifications on rather than a dialog tool your desktop may not ship. A session with no notification daemon still starts normally, just without the progress popup.
+
+Not showing up in Spotlight?
+
+The install registers the app with LaunchServices, so it appears in Launchpad and Finder immediately. Spotlight is a separate index, and if nothing under your home directory is searchable (check with `mdls ~/Applications/Lerd.app`, which prints nothing when the volume has no index) the fix is to rebuild it with `sudo mdutil -E /`, not to reinstall lerd.
+
+### Uninstall [​](#uninstall-1)
+
+bash
+
+```
+lerd uninstall
+```
+
+Tears down the launchd agents, the DNS resolver and the containers, then removes the binary. The Podman machine stays, remove it with `podman machine rm` if nothing else uses it. If you installed via Homebrew, finish with `brew uninstall lerd`.
+
+## Windows (beta) [​](#windows-beta)
+
+There is no native Windows build. Lerd runs on Windows through WSL2, where the standard Linux build works unchanged once systemd and rootless Podman are set up. Windows support is **beta**, it works well for daily development but gets less testing than native Linux or macOS. See the [Windows (WSL2) guide](https://lerd.sh/getting-started/wsl2) for the full walkthrough, including the `events_logger` Podman tweak and the mkcert root CA export to the Windows trust store.
+
+## NixOS [​](#nixos)
+
+NixOS's declarative model doesn't fit the one-line installer's imperative DNS and self-install steps, so the community [`lerd-nixos`](https://github.com/lerd-env/lerd-nixos) flake packages the `lerd` binary and provides the `configuration.nix` blocks the stack needs (rootless Podman, `*.test`\-only DNS routing, the mkcert CA, and the systemd fixes for `lerd-ui` / `lerd-watcher`). See the [NixOS guide](https://lerd.sh/getting-started/nixos) for the complete runbook from a fresh install.
+
+## Desktop app (optional) [​](#desktop-app-optional)
+
+The dashboard runs in any browser, but [Lerd Desktop](https://github.com/lerd-env/lerd-desktop) wraps it in a dedicated window with [native desktop notifications](https://lerd.sh/features/notifications) for captured mail, worker failures and finished operations. It is optional and entirely separate from the lerd install itself, which keeps working unchanged without it.
+
+It ships for Linux as a Flatpak:
+
+bash
+
+```
+flatpak install --user https://lerd.sh/lerd.flatpakref
+```
+
+Update it with `flatpak update`. Once it is installed, `lerd dashboard` and the tray's **Open Dashboard** open the app instead of a browser tab, and clicking a native notification opens it through its `lerd://` scheme. The one-line installer also offers to set it up for you on Linux.
