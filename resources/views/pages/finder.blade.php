@@ -122,10 +122,10 @@
             </div>
 
             <!-- Preset Corridor Quick Select -->
-            <div class="flex items-center gap-2">
+            <div class="flex items-center gap-2 w-full md:w-auto">
                 <select name="route_id"
                         onchange="this.form.submit()"
-                        class="select select-bordered bg-slate-50/70 dark:bg-slate-800/70 border-slate-200 dark:border-slate-700 text-sm rounded-xl h-11 min-h-0">
+                        class="select select-bordered flex-1 min-w-0 max-w-full bg-slate-50/70 dark:bg-slate-800/70 border-slate-200 dark:border-slate-700 text-sm rounded-xl h-11 min-h-0">
                     <option value="">Quick Corridor Presets...</option>
                     @foreach ($corridors as $corridor)
                         <option value="{{ $corridor->id }}" @selected($selectedRoute && $selectedRoute->id === $corridor->id)>
@@ -136,7 +136,7 @@
 
                 <button type="submit"
                         title="Evaluate Corridor"
-                        class="btn bg-forest-900 hover:bg-forest-800 text-white border-0 rounded-xl h-11 min-h-0 px-4">
+                        class="btn shrink-0 bg-forest-900 hover:bg-forest-800 text-white border-0 rounded-xl h-11 min-h-0 px-4">
                     <x-icon name="arrow-right" class="w-4 h-4" />
                 </button>
             </div>
@@ -178,7 +178,7 @@
 
         <!-- Left Column: Go / Postpone Verdict Hero Card (5 cols) -->
         <div class="lg:col-span-5 bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-6 lg:p-7 shadow-2xs space-y-6">
-            <div class="flex items-center justify-between gap-2">
+            <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
                 @if ($isDelay)
                     <span class="inline-flex items-center gap-2 px-3.5 py-1 rounded-full text-xs font-bold tracking-wide uppercase bg-amber-50 dark:bg-amber-950/80 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800">
                         <span class="w-2 h-2 rounded-full bg-amber-500"></span>
@@ -292,17 +292,17 @@
         <!-- Right Column: Window Timeline & Dispersion Bar (7 cols) -->
         <div class="lg:col-span-7 space-y-5">
             <!-- Timeline Header & 3-Day Free Tier Horizon Tabs -->
-            <div class="flex items-center justify-between">
+            <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5">
                 <h3 class="text-base font-bold text-slate-900 dark:text-white">
                     Window Timeline
                 </h3>
 
-                <div class="inline-flex items-center p-1 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200/70 dark:border-slate-700">
+                <div class="inline-flex items-center p-1 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200/70 dark:border-slate-700 w-full sm:w-auto">
                     @foreach ($evaluation['timeline_days'] as $dIdx => $tDay)
                         <button type="button"
                                 @click="activeDay = {{ $dIdx }}"
                                 :class="activeDay === {{ $dIdx }} ? 'bg-forest-900 text-white shadow-2xs font-semibold' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'"
-                                class="px-3.5 py-1 rounded-lg text-xs transition">
+                                class="flex-1 sm:flex-initial text-center px-3.5 py-1 rounded-lg text-xs transition whitespace-nowrap">
                             {{ $tDay['day_label'] }}
                         </button>
                     @endforeach
@@ -368,7 +368,7 @@
             <div class="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-5 shadow-2xs space-y-3.5">
                 <div class="flex items-center justify-between">
                     <h4 class="text-sm font-bold text-slate-900 dark:text-white">
-                        Dispersion Probability &amp; Air Clearance
+                        Dispersion Probability & Air Clearance
                     </h4>
                     <span class="text-xs font-medium text-forest-800 dark:text-forest-300 tabular-nums">
                         Mixing Depth Peak: 09:00 - 11:00

@@ -123,6 +123,16 @@ class AlveoApplicationTest extends TestCase
 
         $this->assertDatabaseHas('workout_logs', ['notes' => 'Clean morning run']);
 
+        // Logging workout outside the 3-day window fails validation
+        $this->actingAs($user)->post('/history', [
+            'saved_route_id' => $presetRoute->id,
+            'activity_type' => 'running',
+            'exertion_zone' => 3,
+            'duration_minutes' => 60,
+            'trained_date' => now('Asia/Jakarta')->subDays(7)->toDateString(),
+            'trained_time' => '09:00',
+        ])->assertSessionHasErrors('trained_date');
+
         // Publish club broadcast
         $this->actingAs($user)->post('/broadcasts', [
             'club_name' => 'Menteng Tempo Crew',

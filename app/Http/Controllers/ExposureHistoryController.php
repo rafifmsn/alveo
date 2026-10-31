@@ -68,6 +68,9 @@ class ExposureHistoryController extends Controller
 
     public function store(Request $request): RedirectResponse
     {
+        $minDate = Carbon::today('Asia/Jakarta')->subDays(2)->toDateString();
+        $maxDate = Carbon::today('Asia/Jakarta')->addDays(2)->toDateString();
+
         $validated = $request->validate([
             'saved_route_id' => ['nullable', 'integer', 'exists:saved_routes,id'],
             'custom_location' => ['nullable', 'string', 'max:140'],
@@ -75,9 +78,12 @@ class ExposureHistoryController extends Controller
             'exertion_zone' => ['required', 'integer', 'between:1,5'],
             'duration_minutes' => ['required', 'integer', 'between:10,360'],
             'ambient_pm2_5' => ['nullable', 'numeric', 'between:1,500'],
-            'trained_date' => ['required', 'date'],
+            'trained_date' => ['required', 'date', "after_or_equal:{$minDate}", "before_or_equal:{$maxDate}"],
             'trained_time' => ['required', 'string'],
             'notes' => ['nullable', 'string', 'max:300'],
+        ], [
+            'trained_date.after_or_equal' => 'Session date must be within the active 3-day forecast window.',
+            'trained_date.before_or_equal' => 'Session date cannot exceed the 3-day forecast horizon.',
         ]);
 
         $route = null;

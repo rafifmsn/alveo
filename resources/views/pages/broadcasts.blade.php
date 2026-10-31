@@ -12,9 +12,6 @@
     <!-- Left Column: Publish Club Clearance Dispatch (5 cols) -->
     <div class="lg:col-span-5 bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-6 shadow-2xs space-y-5">
         <div>
-            <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-forest-50 dark:bg-forest-950 text-forest-800 dark:text-forest-300 border border-forest-200 dark:border-forest-800 mb-2">
-                <span>Captain Dispatch Generator</span>
-            </span>
             <h2 class="text-lg font-bold text-slate-900 dark:text-white">
                 Publish Clean-Air Clearance
             </h2>
@@ -83,7 +80,7 @@
 
             <div>
                 <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5">
-                    Captain Briefing &amp; Assembly Note
+                    Captain Briefing & Assembly Note
                 </label>
                 <textarea name="captain_note"
                           rows="3"
@@ -102,7 +99,7 @@
 
     <!-- Right Column: Club Broadcast Feed (7 cols) -->
     <div class="lg:col-span-7 space-y-4">
-        <div class="flex items-center justify-between">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
             <h3 class="text-base font-bold text-slate-900 dark:text-white">
                 Active Club Clearances ({{ $broadcasts->count() }})
             </h3>
@@ -114,7 +111,6 @@
         @foreach ($broadcasts as $broadcast)
             @php
                 $isFollowing = in_array($broadcast->id, $followedIds, true);
-                $isDelay = $broadcast->verdict === 'DELAY';
                 $tgShareUrl = 'https://t.me/share/url?' . http_build_query([
                     'url' => config('app.url'),
                     'text' => $broadcast->telegramText(),
@@ -122,36 +118,25 @@
             @endphp
             <div class="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-6 shadow-2xs space-y-4">
                 <!-- Top Club & Follow Row -->
-                <div class="flex items-start justify-between gap-3">
+                <div class="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
                     <div>
-                        <div class="flex flex-wrap items-center gap-2">
-                            <span class="text-base font-bold text-slate-900 dark:text-white">
-                                {{ $broadcast->club_name }}
-                            </span>
-                            @if ($isDelay)
-                                <span class="px-2.5 py-0.5 rounded-full text-[11px] font-bold uppercase bg-amber-50 dark:bg-amber-950/80 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800">
-                                    Rescheduled Window
-                                </span>
-                            @else
-                                <span class="px-2.5 py-0.5 rounded-full text-[11px] font-bold uppercase bg-forest-50 dark:bg-forest-950 text-forest-800 dark:text-forest-300 border border-forest-200 dark:border-forest-800">
-                                    Go - Confirmed
-                                </span>
-                            @endif
-                        </div>
+                        <span class="text-base font-bold text-slate-900 dark:text-white block">
+                            {{ $broadcast->club_name }}
+                        </span>
                         <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
                             Captain: <strong class="text-slate-700 dark:text-slate-300">{{ $broadcast->captain_name }}</strong>
                             • {{ $broadcast->session_date->format('D, d M Y') }}
                         </p>
                     </div>
 
-                    <div class="flex items-center gap-2">
+                    <div class="flex items-center gap-2 shrink-0">
                         <form method="POST" action="{{ route('broadcasts.follow', $broadcast) }}">
                             @csrf
                             <button type="submit"
-                                    class="px-3.5 py-1.5 rounded-xl text-xs font-semibold border transition inline-flex items-center gap-1.5 tabular-nums {{ $isFollowing
+                                    class="px-3.5 py-1.5 rounded-xl text-xs font-semibold border transition inline-flex items-center gap-1.5 whitespace-nowrap tabular-nums {{ $isFollowing
                                         ? 'bg-forest-900 text-white border-forest-900'
                                         : 'bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700 hover:border-forest-700' }}">
-                                <x-icon name="users" class="w-3.5 h-3.5" />
+                                <x-icon name="users" class="w-3.5 h-3.5 shrink-0" />
                                 <span>{{ $isFollowing ? 'Following' : 'Follow' }} ({{ $broadcast->followers_count }})</span>
                             </button>
                         </form>
@@ -173,7 +158,7 @@
                 <!-- Metrics Strip -->
                 <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 p-3.5 rounded-xl bg-slate-50/90 dark:bg-slate-800/60 border border-slate-200/60 dark:border-slate-700/60 tabular-nums">
                     <div>
-                        <p class="text-[11px] text-slate-500">Corridor &amp; Session</p>
+                        <p class="text-[11px] text-slate-500">Corridor & Session</p>
                         <p class="text-xs font-bold text-slate-900 dark:text-white truncate">{{ $broadcast->corridor_name }}</p>
                         <p class="text-[11px] text-slate-500">{{ ucfirst($broadcast->activity_type) }} • {{ $broadcast->duration_minutes }}m</p>
                     </div>

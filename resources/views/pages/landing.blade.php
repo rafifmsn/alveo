@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="csrf-token" content="{{ csrf_token() }}">
-    <title>Alveo - Aerobic Clean-Air Window &amp; Pulmonary Exposure Engine</title>
+    <title>Alveo - Aerobic Clean-Air Window & Pulmonary Exposure Engine</title>
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -257,7 +257,7 @@
                             <x-icon name="megaphone" class="w-5 h-5" />
                         </div>
                         <h3 class="text-lg font-bold text-slate-900 pt-1">
-                            Built for Run &amp; Ride Clubs
+                            Built for Run & Ride Clubs
                         </h3>
                         <p class="text-sm text-slate-500 leading-relaxed">
                             Publish verified GO or DELAY window dispatches for your squad and let members RSVP with a single click.
@@ -415,9 +415,9 @@
 
     <!-- Minimal Footer -->
     <footer class="border-t border-slate-100 py-10 px-6">
-        <div class="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-400">
+        <div class="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-400 text-center sm:text-left">
             <span class="font-bold text-sm text-slate-900">Alveo</span>
-            <span>Aerobic Clean-Air Window &amp; Pulmonary Exposure Engine</span>
+            <span class="text-center sm:text-right">Aerobic Clean-Air Window & Pulmonary Exposure Engine</span>
         </div>
     </footer>
 

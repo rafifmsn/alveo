@@ -42,3 +42,11 @@ The application requires administrator account verification prior to dashboard a
   * Verified Hotspots: Six pre-configured Greater Jakarta running and cycling corridors (GBK Outer Perimeter, Sudirman Corridor, PIK Coastal Loop, BSD Green Boulevard, UI Depok Forest Trail, and Kelapa Gading Loop) with realistic distances and surface metadata.
   * Historical Logs and Dispatches: Pre-seeded training logs and club broadcasts demonstrating the 7-day exposure charts and Telegram dispatch formatting.
 
+## Denormalized Follower Counter Cache in Club Broadcasts
+
+Club broadcasts use a denormalized integer counter column (`followers_count`) alongside a relational join table (`club_broadcast_follows`).
+
+* **O(1) Feed Listing Performance:** Querying active club clearances on the broadcast feed does not require executing dynamic `COUNT(*)` aggregations or group-by join queries for every card on page load.
+* **Realistic Seeding Without User Bloat:** Community clubs in the initial database seeder carry realistic baseline followings (such as 42 members in Senayan Dawn Runners) without generating dozens of dummy user records in the `users` table.
+* **Atomic Increment and Decrement:** When an active user clicks Follow or Unfollow, the system updates the `club_broadcast_follows` pivot table for ownership checks and atomically increments or decrements `followers_count` in a single transaction.
+

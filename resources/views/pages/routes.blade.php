@@ -1,11 +1,11 @@
-<x-app-layout title="Saved Routes &amp; Hotspots">
+<x-app-layout title="Saved Routes & Hotspots">
 <div x-data="{ showCreateModal: false }" class="space-y-6">
 
     <!-- Header Banner -->
     <div class="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-2xs">
         <div>
             <h2 class="text-lg font-bold text-slate-900 dark:text-white">
-                Athletic Corridors &amp; Monitored Loops
+                Athletic Corridors & Monitored Loops
             </h2>
             <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">
                 Inspect cached air quality across Greater Jakarta training loops and launch one-click window evaluations.
@@ -169,13 +169,13 @@
                 <!-- Actions -->
                 <div class="pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center gap-2.5">
                     <a href="{{ route('finder', ['route_id' => $route->id]) }}"
-                       class="btn flex-1 bg-forest-900 hover:bg-forest-800 text-white border-0 rounded-xl font-semibold text-xs h-10 min-h-0 inline-flex items-center justify-center gap-1.5">
-                        <x-icon name="compass" class="w-3.5 h-3.5" />
+                       class="btn flex-1 bg-forest-900 hover:bg-forest-800 text-white border-0 rounded-xl font-semibold text-xs h-10 min-h-0 inline-flex items-center justify-center gap-1.5 whitespace-nowrap">
+                        <x-icon name="compass" class="hidden sm:inline-block w-3.5 h-3.5 shrink-0" />
                         <span>Evaluate Window</span>
                     </a>
 
                     <a href="{{ route('dosimetry.index', ['route_id' => $route->id]) }}"
-                       class="btn btn-outline border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 rounded-xl font-semibold text-xs h-10 min-h-0 px-3.5">
+                       class="btn btn-outline border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 rounded-xl font-semibold text-xs h-10 min-h-0 px-3.5 whitespace-nowrap">
                         Dosimetry
                     </a>
                 </div>

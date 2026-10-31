@@ -1,4 +1,4 @@
-<x-app-layout title="Exposure History &amp; Training Log">
+<x-app-layout title="Exposure History & Training Log">
 <div x-data="{ showLogForm: false }" class="space-y-6">
 
     <!-- Top 4 Weekly Summary Metrics -->
@@ -126,7 +126,12 @@
 
             <div>
                 <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5">Session Date</label>
-                <input type="date" name="trained_date" required value="{{ now()->toDateString() }}"
+                <input type="date"
+                       name="trained_date"
+                       required
+                       min="{{ now('Asia/Jakarta')->subDays(2)->toDateString() }}"
+                       max="{{ now('Asia/Jakarta')->addDays(2)->toDateString() }}"
+                       value="{{ now('Asia/Jakarta')->toDateString() }}"
                        class="input input-bordered w-full bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-sm rounded-xl h-10 tabular-nums" />
             </div>
 
@@ -145,7 +150,7 @@
             <div class="flex items-end justify-end">
                 <button type="submit"
                         class="btn w-full bg-forest-900 hover:bg-forest-800 text-white border-0 rounded-xl font-semibold text-sm h-10">
-                    Calculate &amp; Save Log
+                    Calculate & Save Log
                 </button>
             </div>
         </form>
@@ -157,31 +162,31 @@
             <table class="table w-full text-sm">
                 <thead>
                     <tr class="border-b border-slate-200/80 dark:border-slate-800 text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 bg-slate-50/60 dark:bg-slate-800/40">
-                        <th class="py-3.5 px-5">Date &amp; Window</th>
-                        <th class="py-3.5 px-5">Corridor &amp; Activity</th>
-                        <th class="py-3.5 px-5">Ventilation</th>
-                        <th class="py-3.5 px-5">Ambient PM2.5</th>
-                        <th class="py-3.5 px-5">Retained Dose</th>
-                        <th class="py-3.5 px-5">Risk Score</th>
-                        <th class="py-3.5 px-5 text-right">Action</th>
+                        <th class="py-3.5 px-5 min-w-[140px] whitespace-nowrap">Date & Window</th>
+                        <th class="py-3.5 px-5 min-w-[260px] sm:min-w-[300px]">Corridor & Activity</th>
+                        <th class="py-3.5 px-5 whitespace-nowrap">Ventilation</th>
+                        <th class="py-3.5 px-5 whitespace-nowrap">Ambient PM2.5</th>
+                        <th class="py-3.5 px-5 whitespace-nowrap">Retained Dose</th>
+                        <th class="py-3.5 px-5 whitespace-nowrap">Risk Score</th>
+                        <th class="py-3.5 px-5 text-right whitespace-nowrap">Action</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-slate-200/60 dark:divide-slate-800 tabular-nums">
                     @forelse ($logs as $log)
                         <tr class="hover:bg-slate-50/60 dark:hover:bg-slate-800/40 transition">
-                            <td class="py-4 px-5 whitespace-nowrap">
+                            <td class="py-4 px-5 min-w-[140px] whitespace-nowrap">
                                 <p class="font-bold text-slate-900 dark:text-white">{{ $log->trained_at->format('d M Y') }}</p>
                                 <p class="text-xs text-slate-500">{{ $log->trained_at->format('H:i') }} WIB • {{ $log->duration_minutes }}m</p>
                             </td>
-                            <td class="py-4 px-5">
-                                <div class="flex items-center gap-2">
-                                    <span class="px-2 py-0.5 rounded-md text-[11px] font-semibold uppercase bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
+                            <td class="py-4 px-5 min-w-[260px] sm:min-w-[300px]">
+                                <div class="flex flex-col sm:flex-row sm:items-center items-start gap-1.5">
+                                    <span class="px-2 py-0.5 rounded-md text-[11px] font-semibold uppercase bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 shrink-0">
                                         {{ $log->activity_type }}
                                     </span>
                                     <span class="font-bold text-slate-900 dark:text-white">{{ $log->location_name }}</span>
                                 </div>
                                 @if ($log->notes)
-                                    <p class="text-xs text-slate-500 mt-0.5">{{ $log->notes }}</p>
+                                    <p class="text-xs text-slate-500 mt-1 leading-relaxed">{{ $log->notes }}</p>
                                 @endif
                             </td>
                             <td class="py-4 px-5 whitespace-nowrap">

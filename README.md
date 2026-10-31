@@ -36,6 +36,42 @@ It computes minute-ventilation across athletic heart rate zones, evaluates conti
    - Verified Athlete: `rafif@alveo.id` / `password`
    - Pending Approval Account: `pending@alveo.id` / `password` (tests the `/verify` gate)
 
+## Useful Docker CLI Commands
+
+When running the application stack via Docker Compose, you can execute maintenance and development tasks against the `app` container using the commands below:
+
+```bash
+# Seed or re-seed initial data (preset corridors, sample workouts, and demo broadcasts)
+docker compose exec app php artisan db:seed
+
+# Clear application forecast cache (stored in the PostgreSQL cache table)
+docker compose exec app php artisan cache:clear
+
+# Clear cached configuration, routes, and compiled views
+docker compose exec app php artisan optimize:clear
+
+# Run pending database migrations
+docker compose exec app php artisan migrate
+
+# Fresh migration with re-seeding (resets all tables to clean state)
+docker compose exec app php artisan migrate:fresh --seed
+
+# Run the automated test suite
+docker compose exec app php artisan test
+
+# Run code styling checks and autofix with Laravel Pint
+docker compose exec app ./vendor/bin/pint
+
+# Rebuild frontend assets (Tailwind CSS and Vite)
+docker compose exec app npm run build
+
+# Open an interactive PHP Tinker shell
+docker compose exec app php artisan tinker
+
+# Open a shell inside the running application container
+docker compose exec app bash
+```
+
 ## Quickstart (Local Development Without Docker)
 
 To run the application directly on your host machine without Docker:

@@ -1,4 +1,4 @@
-<x-app-layout title="Preferences &amp; Settings">
+<x-app-layout title="Preferences & Settings">
 <div class="max-w-4xl space-y-6">
 
     <form method="POST" action="{{ route('settings.update') }}" class="space-y-6">
@@ -10,7 +10,7 @@
             <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-100 dark:border-slate-800">
                 <div>
                     <h2 class="text-base font-bold text-slate-900 dark:text-white">
-                        Athlete Profile &amp; Account Clearance
+                        Athlete Profile & Account Clearance
                     </h2>
                     <p class="text-xs text-slate-500 dark:text-slate-400">
                         Manage your identity and account credentials.
@@ -51,7 +51,7 @@
         <div class="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-6 shadow-2xs space-y-5">
             <div class="pb-4 border-b border-slate-100 dark:border-slate-800">
                 <h2 class="text-base font-bold text-slate-900 dark:text-white">
-                    Threshold Calibration &amp; Session Defaults
+                    Threshold Calibration & Session Defaults
                 </h2>
                 <p class="text-xs text-slate-500 dark:text-slate-400">
                     Configure the PM2.5 safety ceiling used by the Window Finder to trigger GO vs POSTPONE verdicts.
@@ -170,14 +170,14 @@
 
     <!-- Card 4: Database Cache & WeatherAPI Telemetry -->
     <div class="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-6 shadow-2xs space-y-4 tabular-nums">
-        <div class="flex items-center justify-between">
+        <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
             <div class="flex items-center gap-2.5">
-                <x-icon name="database" class="w-5 h-5 text-forest-700 dark:text-forest-400" />
+                <x-icon name="database" class="w-5 h-5 text-forest-700 dark:text-forest-400 shrink-0" />
                 <h3 class="text-sm font-bold text-slate-900 dark:text-white">
-                    WeatherAPI Quota Conservation &amp; Database Cache
+                    WeatherAPI Quota Conservation & Database Cache
                 </h3>
             </div>
-            <span class="px-2.5 py-0.5 rounded-md text-xs font-semibold bg-forest-50 dark:bg-forest-950 text-forest-800 dark:text-forest-300">
+            <span class="px-2.5 py-0.5 rounded-md text-xs font-semibold bg-forest-50 dark:bg-forest-950 text-forest-800 dark:text-forest-300 shrink-0">
                 {{ $weatherApiConfigured ? 'Live API Key Active' : 'Deterministic Engine Active' }}
             </span>
         </div>
@@ -188,7 +188,7 @@
                 <p class="mt-0.5 font-bold text-slate-900 dark:text-white">{{ strtoupper(config('cache.default')) }} (No Redis)</p>
             </div>
             <div class="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/60 dark:border-slate-700">
-                <p class="text-slate-500">Snapshot TTL &amp; Grid</p>
+                <p class="text-slate-500">Snapshot TTL & Grid</p>
                 <p class="mt-0.5 font-bold text-slate-900 dark:text-white">{{ $cacheTtlMinutes }} mins • 0.01° (~1.1 km)</p>
             </div>
             <div class="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/60 dark:border-slate-700">

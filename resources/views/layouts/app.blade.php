@@ -153,13 +153,6 @@
                         {{ $title }}
                     </h1>
                 </div>
-
-                <div class="flex items-center gap-3">
-                    <span class="hidden sm:inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium bg-forest-50 dark:bg-forest-950/80 text-forest-800 dark:text-forest-300 border border-forest-200 dark:border-forest-800/70">
-                        <span class="w-2 h-2 rounded-full bg-forest-600"></span>
-                        WeatherAPI Free Tier (DB Cached)
-                    </span>
-                </div>
             </header>
 
             <!-- Flash Status Banner -->

@@ -156,8 +156,8 @@ The application requires only five relational tables plus Laravel system tables.
 * `users`: Primary account credentials, email verification timestamp, sensitivity thresholds (`standard` = 35.0 µg/m³, `sensitive` = 25.0 µg/m³, `tolerant` = 50.0 µg/m³), and UI preferences.
 * `saved_routes`: Preset corridors (GBK, Sudirman, PIK Loop, BSD, UI Depok, Kelapa Gading) and custom user-created training loops with coordinates and loop distance.
 * `workout_logs`: Completed athletic sessions linked to users and routes, storing calculated air volume and microgram particulate retention.
-* `club_broadcasts`: Training clearances published by club captains containing optimal time windows, improvement percentages, and custom dispatch notes.
-* `club_broadcast_follows`: Join table tracking which athletes follow specific club dispatches.
+* `club_broadcasts`: Training clearances published by club captains containing optimal time windows, improvement percentages, custom dispatch notes, and a denormalized `followers_count` counter cache.
+* `club_broadcast_follows`: Join table tracking which athletes follow specific club dispatches, used for toggle states and incrementing or decrementing the broadcast counter cache.
 * `cache` and `cache_locks`: Native Laravel database cache tables storing normalized weather snapshots.
 * `sessions`: Database-backed HTTP session table ensuring authenticated sessions persist across container restarts.
 

@@ -38,12 +38,9 @@
 
     <!-- Top Scientific Context Banner -->
     <div class="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-6 shadow-2xs flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-        <div>
-            <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold bg-forest-50 dark:bg-forest-950 text-forest-800 dark:text-forest-300 border border-forest-200 dark:border-forest-800 mb-2">
-                <span>100% Deterministic Pulmonary Model • Zero External API Overhead</span>
-            </div>
+        <div class="min-w-0">
             <h2 class="text-lg font-bold text-slate-900 dark:text-white">
-                Aerobic Minute-Ventilation &amp; Alveolar Deposition Engine
+                Aerobic Minute-Ventilation & Alveolar Deposition Engine
             </h2>
             <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">
                 Formula: <span class="font-semibold text-slate-700 dark:text-slate-200">Retained Dose (µg) = Ventilation Rate (m³/h) × Duration (h) × Ambient PM2.5 (µg/m³) × Deposition Fraction</span>
@@ -51,13 +48,12 @@
         </div>
 
         <!-- Load Cached Corridor Snapshot -->
-        <form method="GET" action="{{ route('dosimetry.index') }}" class="flex items-center gap-2 shrink-0">
+        <form method="GET" action="{{ route('dosimetry.index') }}" class="flex items-center gap-2 w-full lg:w-auto shrink-0">
             <select name="route_id"
                     onchange="this.form.submit()"
-                    class="select select-bordered bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-xs rounded-xl h-10 min-h-0">
-                <option value="">Load Cached Corridor PM2.5...</option>
+                    class="select select-bordered w-full lg:w-72 min-w-0 max-w-full bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-xs rounded-xl h-10 min-h-0">
                 @foreach ($corridors as $c)
-                    <option value="{{ $c->id }}" @selected(request('route_id') == $c->id)>
+                    <option value="{{ $c->id }}" @selected(($selectedRouteId ?? null) === $c->id)>
                         {{ $c->name }}
                     </option>
                 @endforeach
@@ -70,7 +66,7 @@
         <!-- Left Column: Interactive Parameter Controls (5 cols) -->
         <div class="lg:col-span-5 bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-6 shadow-2xs space-y-6">
             <h3 class="text-base font-bold text-slate-900 dark:text-white">
-                 Physiological &amp; Atmospheric Inputs
+                 Physiological & Atmospheric Inputs
             </h3>
 
             <!-- Ambient PM2.5 Slider -->
@@ -214,7 +210,7 @@
             <div class="bg-forest-50/70 dark:bg-forest-950/60 border border-forest-200 dark:border-forest-800/80 rounded-2xl p-5 space-y-2">
                 <div class="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-forest-900 dark:text-forest-300">
                     <x-icon name="heart-pulse" class="w-4 h-4" />
-                    <span>Sports Pulmonology &amp; Recovery Guidance</span>
+                    <span>Sports Pulmonology & Recovery Guidance</span>
                 </div>
                 <p class="text-sm text-slate-700 dark:text-slate-200 leading-relaxed">
                     {{ $activeResult['recovery_advisory'] }}

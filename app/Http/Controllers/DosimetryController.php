@@ -30,20 +30,25 @@ class DosimetryController extends Controller
             ->orderBy('name')
             ->get();
 
+        $selectedRoute = null;
+        if ($request->filled('route_id')) {
+            $selectedRoute = $corridors->firstWhere('id', (int) $request->input('route_id'));
+        } else {
+            $selectedRoute = $corridors->first(fn (SavedRoute $c) => stripos($c->name, 'GBK') !== false)
+                ?? $corridors->first();
+        }
+
         $pm25 = (float) $request->input('pm2_5', 58.4);
         $o3 = (float) $request->input('o3', 48.0);
         $pm10 = (float) $request->input('pm10', round($pm25 * 1.42, 1));
         $zone = (int) $request->input('zone', 3);
         $duration = (int) $request->input('duration', $user?->default_duration ?? 60);
 
-        if ($request->filled('route_id')) {
-            $route = $corridors->firstWhere('id', (int) $request->input('route_id'));
-            if ($route) {
-                $forecast = $this->weather->getForecast((float) $route->latitude, (float) $route->longitude, $route->name);
-                $pm25 = (float) $forecast['current']['pm2_5'];
-                $o3 = (float) $forecast['current']['o3'];
-                $pm10 = (float) $forecast['current']['pm10'];
-            }
+        if ($selectedRoute && ! $request->filled('pm2_5')) {
+            $forecast = $this->weather->getForecast((float) $selectedRoute->latitude, (float) $selectedRoute->longitude, $selectedRoute->name);
+            $pm25 = (float) $forecast['current']['pm2_5'];
+            $o3 = (float) $forecast['current']['o3'];
+            $pm10 = (float) $forecast['current']['pm10'];
         }
 
         $activeResult = $this->dosimetry->calculate($pm25, $duration, $zone, $o3, $pm10);
@@ -60,6 +65,7 @@ class DosimetryController extends Controller
             'zoneComparison' => $zoneComparison,
             'zonesConfig' => DosimetryCalculator::ZONES,
             'corridors' => $corridors,
+            'selectedRouteId' => $selectedRoute?->id,
         ]);
     }
 }

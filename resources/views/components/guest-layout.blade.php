@@ -62,7 +62,7 @@
                 Alveo
             </a>
             <p class="mt-1.5 text-sm text-slate-500">
-                Aerobic Clean-Air Window &amp; Exposure Engine
+                Aerobic Clean-Air Window & Exposure Engine
             </p>
         </div>
 
