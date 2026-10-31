@@ -1,5 +1,87 @@
 <x-app-layout title="Saved Routes & Hotspots">
-<div x-data="{ showCreateModal: false }" class="space-y-6">
+<div x-data="{
+        showCreateModal: false,
+        lat: -6.2210,
+        lon: 106.8320,
+        map: null,
+        marker: null,
+        locating: false,
+        initMap() {
+            if (this.map) {
+                setTimeout(() => { if (this.map) this.map.invalidateSize(); }, 100);
+                return;
+            }
+            if (typeof L === 'undefined') {
+                setTimeout(() => this.initMap(), 150);
+                return;
+            }
+            const container = document.getElementById('corridor-map-picker');
+            if (!container) return;
+
+            this.map = L.map('corridor-map-picker', {
+                scrollWheelZoom: false
+            }).setView([this.lat, this.lon], 13);
+
+            L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                maxZoom: 19,
+                attribution: '&copy; OpenStreetMap'
+            }).addTo(this.map);
+
+            const icon = L.divIcon({
+                className: 'custom-corridor-pin',
+                html: '<div style=\'width: 26px; height: 26px; border-radius: 50%; background: #064e3b; border: 2.5px solid #ffffff; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: center; color: white; font-size: 11px; font-weight: bold;\'>★</div>',
+                iconSize: [26, 26],
+                iconAnchor: [13, 13]
+            });
+
+            this.marker = L.marker([this.lat, this.lon], { draggable: true, icon: icon }).addTo(this.map);
+
+            this.marker.on('dragend', (e) => {
+                const pos = e.target.getLatLng();
+                this.lat = parseFloat(pos.lat.toFixed(4));
+                this.lon = parseFloat(pos.lng.toFixed(4));
+            });
+
+            this.map.on('click', (e) => {
+                this.lat = parseFloat(e.latlng.lat.toFixed(4));
+                this.lon = parseFloat(e.latlng.lng.toFixed(4));
+                this.marker.setLatLng(e.latlng);
+            });
+
+            setTimeout(() => { if (this.map) this.map.invalidateSize(); }, 250);
+        },
+        useBrowserGps() {
+            if (!navigator.geolocation) return;
+            this.locating = true;
+            navigator.geolocation.getCurrentPosition((pos) => {
+                this.lat = parseFloat(pos.coords.latitude.toFixed(4));
+                this.lon = parseFloat(pos.coords.longitude.toFixed(4));
+                this.locating = false;
+                if (this.map && this.marker) {
+                    this.map.setView([this.lat, this.lon], 15);
+                    this.marker.setLatLng([this.lat, this.lon]);
+                }
+            }, () => {
+                this.locating = false;
+            });
+        },
+        updateMarkerFromInput() {
+            if (this.map && this.marker && !isNaN(this.lat) && !isNaN(this.lon)) {
+                const newPos = [this.lat, this.lon];
+                this.marker.setLatLng(newPos);
+                this.map.panTo(newPos);
+            }
+        }
+    }"
+    x-init="$watch('showCreateModal', value => {
+        if (value) {
+            $nextTick(() => {
+                initMap();
+                setTimeout(() => { if (this.map) this.map.invalidateSize(); }, 300);
+            });
+        }
+    })"
+    class="space-y-6">
 
     <!-- Header Banner -->
     <div class="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-2xs">
@@ -23,69 +105,109 @@
     <!-- Collapsible Add Corridor Form Card -->
     <div x-show="showCreateModal"
          x-cloak
-         class="bg-white dark:bg-slate-900 border border-forest-300 dark:border-forest-800 rounded-2xl p-6 shadow-sm">
-        <div class="flex items-center justify-between mb-4">
-            <h3 class="text-base font-bold text-slate-900 dark:text-white">
-                Add Custom Training Corridor
-            </h3>
-            <button type="button" @click="showCreateModal = false" class="text-xs font-semibold text-slate-500 hover:text-slate-800">
+         class="bg-white dark:bg-slate-900 border border-forest-300 dark:border-forest-800 rounded-2xl p-5 sm:p-6 shadow-sm space-y-4">
+        <div class="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+            <div>
+                <h3 class="text-base font-bold text-slate-900 dark:text-white">
+                    Add Custom Training Corridor
+                </h3>
+                <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                    Click anywhere on the map or drag the pin to set corridor coordinates.
+                </p>
+            </div>
+            <button type="button" @click="showCreateModal = false" class="text-xs font-semibold text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 p-1">
                 Cancel
             </button>
         </div>
 
-        <form method="POST" action="{{ route('routes.store') }}" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        <form method="POST" action="{{ route('routes.store') }}" class="space-y-5">
             @csrf
 
-            <div>
-                <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5">Corridor Name</label>
-                <input type="text" name="name" required placeholder="e.g. Epicentrum Walk Loop"
-                       class="input input-bordered w-full bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-sm rounded-xl h-10" />
-            </div>
+            <div class="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+                <!-- Left: Interactive Map Container (5 cols on lg) -->
+                <div class="lg:col-span-5 space-y-2">
+                    <div class="flex items-center justify-between">
+                        <span class="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                            Map Coordinate Pin
+                        </span>
+                        <button type="button"
+                                @click="useBrowserGps()"
+                                class="px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:border-forest-700 inline-flex items-center gap-1 transition">
+                            <x-icon name="map-pin" class="w-3.5 h-3.5 text-forest-700 shrink-0" />
+                            <span x-text="locating ? 'Locating...' : 'GPS'">GPS</span>
+                        </button>
+                    </div>
 
-            <div>
-                <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5">Region / District</label>
-                <input type="text" name="region" required placeholder="e.g. Kuningan, South Jakarta"
-                       class="input input-bordered w-full bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-sm rounded-xl h-10" />
-            </div>
+                    <!-- Map Box -->
+                    <div id="corridor-map-picker"
+                         class="h-60 sm:h-64 lg:h-72 w-full rounded-xl overflow-hidden border border-slate-200 dark:border-slate-700 shadow-inner z-0">
+                    </div>
 
-            <div>
-                <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5">Surface Type</label>
-                <input type="text" name="surface_type" required value="Protected Road Loop"
-                       class="input input-bordered w-full bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-sm rounded-xl h-10" />
-            </div>
-
-            <div>
-                <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5">Latitude</label>
-                <input type="number" step="0.0001" name="latitude" required value="-6.2210"
-                       class="input input-bordered w-full bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-sm rounded-xl h-10 tabular-nums" />
-            </div>
-
-            <div>
-                <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5">Longitude</label>
-                <input type="number" step="0.0001" name="longitude" required value="106.8320"
-                       class="input input-bordered w-full bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-sm rounded-xl h-10 tabular-nums" />
-            </div>
-
-            <div class="grid grid-cols-2 gap-3">
-                <div>
-                    <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5">Loop Distance (km)</label>
-                    <input type="number" step="0.1" name="distance_km" required value="5.0"
-                           class="input input-bordered w-full bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-sm rounded-xl h-10 tabular-nums" />
+                    <div class="flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400 tabular-nums">
+                        <span>Click map or drag pin</span>
+                        <span class="font-semibold text-slate-700 dark:text-slate-300" x-text="lat + ', ' + lon"></span>
+                    </div>
                 </div>
-                <div>
-                    <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5">Primary Sport</label>
-                    <select name="preferred_activity" class="select select-bordered w-full bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-sm rounded-xl h-10 min-h-0">
-                        <option value="running">Running</option>
-                        <option value="cycling">Cycling</option>
-                        <option value="walking">Walking</option>
-                    </select>
+
+                <!-- Right: Form Fields (7 cols on lg) -->
+                <div class="lg:col-span-7 grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                    <div class="sm:col-span-2">
+                        <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5">Corridor Name</label>
+                        <input type="text" name="name" required placeholder="e.g. Epicentrum Walk Loop"
+                               class="input input-bordered w-full bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-sm rounded-xl h-10" />
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5">Region / District</label>
+                        <input type="text" name="region" required placeholder="e.g. Kuningan, South Jakarta"
+                               class="input input-bordered w-full bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-sm rounded-xl h-10" />
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5">Surface Type</label>
+                        <input type="text" name="surface_type" required value="Protected Road Loop"
+                               class="input input-bordered w-full bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-sm rounded-xl h-10" />
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5">Latitude</label>
+                        <input type="number" step="0.0001" name="latitude" required x-model.number="lat" @input="updateMarkerFromInput()"
+                               class="input input-bordered w-full bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-sm rounded-xl h-10 tabular-nums" />
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5">Longitude</label>
+                        <input type="number" step="0.0001" name="longitude" required x-model.number="lon" @input="updateMarkerFromInput()"
+                               class="input input-bordered w-full bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-sm rounded-xl h-10 tabular-nums" />
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5">Loop Distance (km)</label>
+                        <input type="number" step="0.1" name="distance_km" required value="5.0"
+                               class="input input-bordered w-full bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-sm rounded-xl h-10 tabular-nums" />
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5">Primary Sport</label>
+                        <select name="preferred_activity" class="select select-bordered w-full bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-sm rounded-xl h-10 min-h-0">
+                            <option value="running">Running</option>
+                            <option value="cycling">Cycling</option>
+                            <option value="walking">Walking</option>
+                        </select>
+                    </div>
                 </div>
             </div>
 
-            <div class="sm:col-span-2 lg:col-span-3 flex justify-end pt-2">
+            <div class="flex flex-col sm:flex-row items-stretch sm:items-center justify-end gap-2 sm:gap-3 pt-3 border-t border-slate-100 dark:border-slate-800">
+                <button type="button" @click="showCreateModal = false" class="hidden sm:inline-flex btn btn-ghost text-xs rounded-xl h-10 min-h-0 px-4">
+                    Cancel
+                </button>
                 <button type="submit"
-                        class="btn bg-forest-900 hover:bg-forest-800 text-white border-0 rounded-xl font-semibold text-sm h-10 px-6">
+                        class="btn w-full sm:w-auto bg-forest-900 hover:bg-forest-800 text-white border-0 rounded-xl font-semibold text-sm h-11 sm:h-10 px-6">
                     Save Corridor to Database
+                </button>
+                <button type="button" @click="showCreateModal = false" class="sm:hidden text-center text-xs font-semibold text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 py-1.5">
+                    Cancel
                 </button>
             </div>
         </form>

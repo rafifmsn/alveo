@@ -1,5 +1,13 @@
+x-logging: &default-logging
+  logging:
+    driver: "json-file"
+    options:
+      max-size: "10m"
+      max-file: "3"
+
 services:
   app:
+    <<: *default-logging
     build:
       context: .
       dockerfile: Dockerfile
@@ -25,8 +33,10 @@ services:
         condition: service_healthy
     networks:
       - alveo-net
+      - caddy_proxy
 
   db:
+    <<: *default-logging
     image: postgres:16-alpine
     container_name: alveo-db
     restart: unless-stopped
@@ -45,6 +55,7 @@ services:
       - alveo-net
 
   adminer:
+    <<: *default-logging
     image: adminer:latest
     container_name: alveo-adminer
     restart: unless-stopped
@@ -58,6 +69,7 @@ services:
         condition: service_healthy
     networks:
       - alveo-net
+      - caddy_proxy
 
 volumes:
   pgdata:
@@ -65,4 +77,5 @@ volumes:
 networks:
   alveo-net:
     driver: bridge
-
+  caddy_proxy:
+    external: true
