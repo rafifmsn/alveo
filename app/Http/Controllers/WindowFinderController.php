@@ -141,7 +141,11 @@ class WindowFinderController extends Controller
             'ai_briefing' => $includeAi ? $evaluation['ai_briefing'] : null,
             'actions' => [
                 'google_calendar_url' => $evaluation['actions']['google_calendar_url'],
+                'm365_calendar_url' => $evaluation['actions']['m365_calendar_url'],
+                'outlook_calendar_url' => $evaluation['actions']['outlook_calendar_url'],
+                'yahoo_calendar_url' => $evaluation['actions']['yahoo_calendar_url'],
                 'telegram_share_url' => $evaluation['actions']['telegram_share_url'],
+                'mailto_share_url' => $evaluation['actions']['mailto_share_url'],
                 'ics_download_payload' => $evaluation['actions']['ics_download_payload'],
             ],
         ]);

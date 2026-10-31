@@ -231,20 +231,58 @@
                     <span>Add to Google Calendar</span>
                 </a>
 
-                <a href="{{ route('calendar.ics', ['lat' => $loc['latitude'], 'lon' => $loc['longitude'], 'activity' => $act, 'duration' => $dur, 'location' => $loc['name']]) }}"
-                   class="btn btn-outline w-full border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 rounded-xl font-semibold text-sm h-11 inline-flex items-center justify-center gap-2">
-                    <x-icon name="download" class="w-4 h-4" />
-                    <span>Download .ics</span>
-                </a>
+                <!-- Multi-Platform Calendar Deep Links (M365, Outlook.com, Yahoo, .ics) -->
+                <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                    <a href="{{ $evaluation['actions']['m365_calendar_url'] }}"
+                       target="_blank"
+                       rel="noopener noreferrer"
+                       class="px-2.5 py-2 rounded-xl border border-slate-200 dark:border-slate-700 hover:border-forest-700 dark:hover:border-forest-500 bg-slate-50/70 dark:bg-slate-800/70 text-xs font-semibold text-slate-700 dark:text-slate-200 text-center transition">
+                        Microsoft 365
+                    </a>
+                    <a href="{{ $evaluation['actions']['outlook_calendar_url'] }}"
+                       target="_blank"
+                       rel="noopener noreferrer"
+                       class="px-2.5 py-2 rounded-xl border border-slate-200 dark:border-slate-700 hover:border-forest-700 dark:hover:border-forest-500 bg-slate-50/70 dark:bg-slate-800/70 text-xs font-semibold text-slate-700 dark:text-slate-200 text-center transition">
+                        Outlook.com
+                    </a>
+                    <a href="{{ $evaluation['actions']['yahoo_calendar_url'] }}"
+                       target="_blank"
+                       rel="noopener noreferrer"
+                       class="px-2.5 py-2 rounded-xl border border-slate-200 dark:border-slate-700 hover:border-forest-700 dark:hover:border-forest-500 bg-slate-50/70 dark:bg-slate-800/70 text-xs font-semibold text-slate-700 dark:text-slate-200 text-center transition">
+                        Yahoo Cal
+                    </a>
+                    <a href="{{ route('calendar.ics', ['lat' => $loc['latitude'], 'lon' => $loc['longitude'], 'activity' => $act, 'duration' => $dur, 'location' => $loc['name']]) }}"
+                       class="px-2.5 py-2 rounded-xl border border-slate-200 dark:border-slate-700 hover:border-forest-700 dark:hover:border-forest-500 bg-slate-50/70 dark:bg-slate-800/70 text-xs font-semibold text-slate-700 dark:text-slate-200 text-center inline-flex items-center justify-center gap-1 transition">
+                        <x-icon name="download" class="w-3.5 h-3.5" />
+                        <span>.ics File</span>
+                    </a>
+                </div>
 
-                <div class="pt-1 flex items-center justify-center gap-4">
+                <!-- Pre-Populated Share Channels (Telegram, Mailto, Clipboard) -->
+                <div class="pt-1 flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 dark:border-slate-800">
+                    <div class="flex items-center gap-3">
+                        <a href="{{ $evaluation['actions']['telegram_share_url'] }}"
+                           target="_blank"
+                           rel="noopener noreferrer"
+                           class="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-600 dark:text-slate-300 hover:text-forest-800 dark:hover:text-forest-300 transition py-1">
+                            <x-icon name="send" class="w-3.5 h-3.5 text-forest-700 dark:text-forest-400" />
+                            <span>Telegram</span>
+                        </a>
+
+                        <a href="{{ $evaluation['actions']['mailto_share_url'] }}"
+                           class="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-600 dark:text-slate-300 hover:text-forest-800 dark:hover:text-forest-300 transition py-1">
+                            <x-icon name="mail" class="w-3.5 h-3.5 text-forest-700 dark:text-forest-400" />
+                            <span>Email Dispatch</span>
+                        </a>
+                    </div>
+
                     <button type="button"
                             @click="copyTelegramCard(@js($evaluation['actions']['telegram_card_text']))"
-                            class="inline-flex items-center gap-2 text-xs font-semibold text-slate-500 dark:text-slate-400 hover:text-forest-800 dark:hover:text-forest-300 transition py-1.5">
+                            class="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-500 dark:text-slate-400 hover:text-forest-800 dark:hover:text-forest-300 transition py-1">
                         <x-icon name="copy" x-show="!copiedTelegram" class="w-3.5 h-3.5" />
                         <x-icon name="check" x-show="copiedTelegram" x-cloak class="w-3.5 h-3.5 text-forest-700" />
-                        <span x-text="copiedTelegram ? 'Copied Dispatch Card to Clipboard!' : 'Copy Dispatch Card for Telegram'">
-                            Copy Dispatch Card for Telegram
+                        <span x-text="copiedTelegram ? 'Copied Card!' : 'Copy Card'">
+                            Copy Card
                         </span>
                     </button>
                 </div>

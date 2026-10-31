@@ -142,7 +142,7 @@ class ExposureEngine
             $briefing
         );
 
-        $googleCalUrl = $this->generateGoogleCalendarUrl(
+        $calendarLinks = $this->generateCalendarDeepLinks(
             $locationName,
             $activityType,
             $todayOptimal['best_start_iso'],
@@ -170,6 +170,10 @@ class ExposureEngine
             'url' => config('app.url'),
             'text' => $telegramCardText,
         ]);
+
+        $mailtoSubject = rawurlencode(sprintf('Alveo Clean-Air %s Window: %s (%s)', ucfirst($activityType), $locationName, $todayOptimal['window_display']));
+        $mailtoBody = rawurlencode($telegramCardText."\n\nEvaluated via Alveo: ".config('app.url'));
+        $mailtoShareUrl = "mailto:?subject={$mailtoSubject}&body={$mailtoBody}";
 
         return [
             'status' => $status,
@@ -214,8 +218,12 @@ class ExposureEngine
             'ai_briefing' => $briefing,
             'timeline_days' => $timelineDays,
             'actions' => [
-                'google_calendar_url' => $googleCalUrl,
+                'google_calendar_url' => $calendarLinks['google'],
+                'm365_calendar_url' => $calendarLinks['m365'],
+                'outlook_calendar_url' => $calendarLinks['outlook'],
+                'yahoo_calendar_url' => $calendarLinks['yahoo'],
                 'telegram_share_url' => $telegramShareUrl,
+                'mailto_share_url' => $mailtoShareUrl,
                 'telegram_card_text' => $telegramCardText,
                 'ics_download_payload' => $icsPayload,
             ],
@@ -270,7 +278,7 @@ class ExposureEngine
         );
     }
 
-    protected function generateGoogleCalendarUrl(
+    protected function generateCalendarDeepLinks(
         string $locationName,
         string $activityType,
         string $startIso,
@@ -278,9 +286,15 @@ class ExposureEngine
         float $projectedPm25,
         float $improvementPct,
         string $briefing
-    ): string {
-        $startUtc = Carbon::parse($startIso)->utc()->format('Ymd\THis\Z');
-        $endUtc = Carbon::parse($endIso)->utc()->format('Ymd\THis\Z');
+    ): array {
+        $startCarbonUtc = Carbon::parse($startIso)->utc();
+        $endCarbonUtc = Carbon::parse($endIso)->utc();
+
+        $startCompactUtc = $startCarbonUtc->format('Ymd\THis\Z');
+        $endCompactUtc = $endCarbonUtc->format('Ymd\THis\Z');
+
+        $startIsoUtc = $startCarbonUtc->format('Y-m-d\TH:i:s\Z');
+        $endIsoUtc = $endCarbonUtc->format('Y-m-d\TH:i:s\Z');
 
         $title = sprintf('Alveo Clean-Air %s Session (%s)', ucfirst($activityType), $locationName);
         $details = sprintf(
@@ -290,13 +304,35 @@ class ExposureEngine
             $briefing
         );
 
-        return 'https://calendar.google.com/calendar/render?'.http_build_query([
-            'action' => 'TEMPLATE',
-            'text' => $title,
-            'dates' => "{$startUtc}/{$endUtc}",
+        $outlookParams = http_build_query([
+            'path' => '/calendar/action/compose',
+            'rru' => 'addevent',
+            'subject' => $title,
+            'startdt' => $startIsoUtc,
+            'enddt' => $endIsoUtc,
+            'body' => $details,
             'location' => $locationName,
-            'details' => $details,
         ]);
+
+        return [
+            'google' => 'https://calendar.google.com/calendar/render?'.http_build_query([
+                'action' => 'TEMPLATE',
+                'text' => $title,
+                'dates' => "{$startCompactUtc}/{$endCompactUtc}",
+                'details' => $details,
+                'location' => $locationName,
+            ]),
+            'm365' => 'https://outlook.office.com/calendar/0/deeplink/compose?'.$outlookParams,
+            'outlook' => 'https://outlook.live.com/calendar/0/deeplink/compose?'.$outlookParams,
+            'yahoo' => 'https://calendar.yahoo.com/?'.http_build_query([
+                'v' => '60',
+                'title' => $title,
+                'st' => $startCompactUtc,
+                'et' => $endCompactUtc,
+                'desc' => $details,
+                'in_loc' => $locationName,
+            ]),
+        ];
     }
 
     public function generateIcsPayload(

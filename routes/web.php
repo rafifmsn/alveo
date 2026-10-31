@@ -9,6 +9,8 @@ use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\WindowFinderController;
 use Illuminate\Support\Facades\Route;
 
+Route::view('/', 'pages.landing')->name('landing');
+
 Route::middleware('guest')->group(function () {
     Route::get('/login', [AuthController::class, 'showLogin'])->name('login');
     Route::post('/login', [AuthController::class, 'login'])->name('login.submit');
@@ -22,8 +24,7 @@ Route::middleware('auth')->group(function () {
 });
 
 Route::middleware(['auth', 'verified.account'])->group(function () {
-    Route::get('/', [WindowFinderController::class, 'index'])->name('finder');
-    Route::get('/finder', [WindowFinderController::class, 'index'])->name('finder.alias');
+    Route::get('/finder', [WindowFinderController::class, 'index'])->name('finder');
     Route::get('/calendar/ics', [WindowFinderController::class, 'downloadIcs'])->name('calendar.ics');
 
     Route::get('/routes', [SavedRouteController::class, 'index'])->name('routes.index');

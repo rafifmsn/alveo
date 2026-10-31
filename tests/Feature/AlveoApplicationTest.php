@@ -12,6 +12,17 @@ class AlveoApplicationTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_public_landing_page_renders_for_guests(): void
+    {
+        $response = $this->get('/');
+
+        $response->assertOk()
+            ->assertSee('Train Smarter')
+            ->assertSee('Connects with Your Tools')
+            ->assertSee('/images/landing/hero-dashboard.svg')
+            ->assertSee('/images/landing/tools-bg.svg');
+    }
+
     public function test_newly_registered_user_is_unverified_and_redirected_to_verify_screen(): void
     {
         $response = $this->post('/register', [
@@ -27,7 +38,7 @@ class AlveoApplicationTest extends TestCase
         $this->assertNull($user->email_verified_at);
 
         // Attempting to visit dashboard redirects to /verify
-        $this->actingAs($user)->get('/')->assertRedirect('/verify');
+        $this->actingAs($user)->get('/finder')->assertRedirect('/verify');
 
         // Visiting /verify shows Verification Required modal & mailto link
         $verifyPage = $this->actingAs($user)->get('/verify');
@@ -45,9 +56,12 @@ class AlveoApplicationTest extends TestCase
         $this->assertNotNull($user->email_verified_at);
 
         // Screen 1: Window Finder
-        $this->actingAs($user)->get('/')
+        $this->actingAs($user)->get('/finder')
             ->assertOk()
             ->assertSee('Optimal Rescheduled Window')
+            ->assertSee('Microsoft 365')
+            ->assertSee('Outlook.com')
+            ->assertSee('Yahoo Cal')
             ->assertSee('Window Timeline');
 
         // Screen 2: Saved Routes & Hotspots
@@ -151,7 +165,11 @@ class AlveoApplicationTest extends TestCase
                 'ai_briefing',
                 'actions' => [
                     'google_calendar_url',
+                    'm365_calendar_url',
+                    'outlook_calendar_url',
+                    'yahoo_calendar_url',
                     'telegram_share_url',
+                    'mailto_share_url',
                     'ics_download_payload',
                 ],
             ]);
