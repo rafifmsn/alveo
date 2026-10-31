@@ -33,6 +33,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>{{ $title }} - Alveo</title>
+    <link rel="icon" type="image/svg+xml" href="{{ asset('favicon.svg') }}">
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -83,6 +84,24 @@
             font-variant-numeric: tabular-nums;
         }
         [x-cloak] { display: none !important; }
+
+        /* Dark / Light Mode SVG Logo Visibility */
+        html.dark .logo-dark,
+        html[data-theme="alveo-dark"] .logo-dark {
+            display: block !important;
+        }
+        html.dark .logo-light,
+        html[data-theme="alveo-dark"] .logo-light {
+            display: none !important;
+        }
+        html:not(.dark) .logo-dark,
+        html[data-theme="alveo"] .logo-dark {
+            display: none !important;
+        }
+        html:not(.dark) .logo-light,
+        html[data-theme="alveo"] .logo-light {
+            display: block !important;
+        }
     </style>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
     <style>
@@ -98,10 +117,17 @@
         <!-- Sidebar Navigation -->
         <aside class="w-full lg:w-64 lg:min-h-screen bg-white dark:bg-slate-900 border-b lg:border-b-0 lg:border-r border-slate-200/90 dark:border-slate-800 flex flex-col justify-between shrink-0">
             <div>
-                <!-- Brand Header: Simple Typography Only (No Icon Shape) -->
+                <!-- Brand Header: Alveo SVG Logo -->
                 <div class="h-20 px-7 flex items-center justify-between border-b border-slate-200/80 dark:border-slate-800">
-                    <a href="{{ route('finder') }}" class="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
-                        Alveo
+                    <a href="{{ route('finder') }}" class="flex items-center">
+                        <img src="{{ asset('images/alveo-dark.svg') }}"
+                             alt="Alveo"
+                             class="h-8 w-auto logo-dark"
+                             :class="{ 'hidden': !darkMode, 'block': darkMode }" />
+                        <img src="{{ asset('images/alveo-light.svg') }}"
+                             alt="Alveo"
+                             class="h-8 w-auto logo-light"
+                             :class="{ 'block': !darkMode, 'hidden': darkMode }" />
                     </a>
 
                     <button type="button"

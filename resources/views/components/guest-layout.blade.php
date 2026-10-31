@@ -6,6 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>{{ $title }} - Alveo</title>
+    <link rel="icon" type="image/svg+xml" href="{{ asset('favicon.svg') }}">
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -56,10 +57,10 @@
 <body class="bg-slate-50 text-slate-900 antialiased min-h-screen flex flex-col justify-center items-center p-6">
 
     <div class="w-full max-w-md">
-        <!-- Simple Typography Brand Header (No Icon) -->
+        <!-- Alveo Brand Header -->
         <div class="text-center mb-8">
-            <a href="{{ url('/') }}" class="text-3xl font-bold tracking-tight text-slate-900">
-                Alveo
+            <a href="{{ url('/') }}" class="inline-block">
+                <img src="{{ asset('images/alveo-light.svg') }}" alt="Alveo" class="h-9 w-auto mx-auto" />
             </a>
             <p class="mt-1.5 text-sm text-slate-500">
                 Aerobic Clean-Air Window & Exposure Engine

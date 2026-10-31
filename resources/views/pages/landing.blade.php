@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>Alveo - Aerobic Clean-Air Window & Pulmonary Exposure Engine</title>
+    <link rel="icon" type="image/svg+xml" href="{{ asset('favicon.svg') }}">
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -57,11 +58,11 @@
 </head>
 <body class="bg-white text-slate-900 antialiased selection:bg-forest-900 selection:text-white">
 
-    <!-- Top Single-Page Header: Plain Text Logo Left, Single CTA Right (No Hamburger Button) -->
+    <!-- Top Single-Page Header: Alveo SVG Logo Left, Single CTA Right (No Hamburger Button) -->
     <header class="w-full border-b border-slate-100 bg-white/95 backdrop-blur-xs sticky top-0 z-30">
         <div class="max-w-6xl mx-auto px-6 h-20 flex items-center justify-between">
-            <a href="{{ route('landing') }}" class="text-2xl font-bold tracking-tight text-slate-900">
-                Alveo
+            <a href="{{ route('landing') }}" class="flex items-center">
+                <img src="{{ asset('images/alveo-light.svg') }}" alt="Alveo" class="h-8 w-auto" />
             </a>
 
             @auth
@@ -328,9 +329,9 @@
                         </div>
 
                         <div class="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-white border border-slate-200/90 shadow-xs p-2.5 flex items-center justify-center lg:-translate-y-1"
-                             title="Outlook.com Personal Calendar Deep Link">
+                             title="Outlook Personal Calendar Deep Link">
                             <img src="{{ asset('images/landing/icon-outlook.svg') }}"
-                                 alt="Outlook.com Calendar"
+                                 alt="Outlook Calendar"
                                  class="w-full h-full object-contain" />
                         </div>
 
@@ -358,7 +359,7 @@
                             </h2>
 
                             <p class="text-sm sm:text-base text-slate-600 max-w-md mx-auto leading-relaxed">
-                                Push clean-air training sessions to Google Calendar, Microsoft 365, Outlook.com, Yahoo Calendar, `.ics`, Telegram, and Email completely free.
+                                Push clean-air training sessions to Google Calendar, Microsoft 365, Outlook, Yahoo Calendar, `.ics`, Telegram, and Email completely free.
                             </p>
 
                             <div class="pt-3">
@@ -416,7 +417,9 @@
     <!-- Minimal Footer -->
     <footer class="border-t border-slate-100 py-10 px-6">
         <div class="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-400 text-center sm:text-left">
-            <span class="font-bold text-sm text-slate-900">Alveo</span>
+            <a href="{{ route('landing') }}" class="flex items-center">
+                <img src="{{ asset('images/alveo-light.svg') }}" alt="Alveo" class="h-6 w-auto" />
+            </a>
             <span class="text-center sm:text-right">Aerobic Clean-Air Window & Pulmonary Exposure Engine</span>
         </div>
     </footer>
