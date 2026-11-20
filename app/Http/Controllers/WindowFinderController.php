@@ -100,7 +100,26 @@ class WindowFinderController extends Controller
         $threshold = $request->user() ? $request->user()->pm25Threshold() : 35.0;
 
         $evaluation = $this->engine->evaluate($lat, $lon, $activity, $duration, $threshold, $location);
-        $ics = $evaluation['actions']['ics_download_payload'];
+
+        if ($request->filled('start_iso') && $request->filled('end_iso')) {
+            $pm25 = (float) $request->input('pm2_5', $evaluation['recommendation']['projected_pm2_5']);
+            $currentPm25 = (float) $evaluation['current_conditions']['pm2_5'];
+            $improvementPct = $currentPm25 > 0
+                ? round(max(0.0, (($currentPm25 - $pm25) / $currentPm25) * 100), 1)
+                : 0.0;
+
+            $ics = $this->engine->generateIcsPayload(
+                $evaluation['location']['name'],
+                $activity,
+                (string) $request->input('start_iso'),
+                (string) $request->input('end_iso'),
+                $pm25,
+                $improvementPct,
+                $evaluation['ai_briefing']
+            );
+        } else {
+            $ics = $evaluation['actions']['ics_download_payload'];
+        }
 
         return response($ics, 200, [
             'Content-Type' => 'text/calendar; charset=utf-8',

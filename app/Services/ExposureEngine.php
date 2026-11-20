@@ -33,6 +33,7 @@ class ExposureEngine
         );
 
         $slotsNeeded = max(1, (int) ceil($durationMinutes / 60));
+        $currentPm25 = (float) $current['pm2_5'];
         $timelineDays = [];
         $todayOptimal = null;
 
@@ -64,10 +65,28 @@ class ExposureEngine
             $endCarbon = $startCarbon->copy()->addMinutes($durationMinutes);
 
             $windowSlots = [];
-            foreach (array_slice($trainingHours, 0, 6) as $idx => $slot) {
+            foreach ($trainingHours as $slot) {
                 $isOptimal = ($slot['hour'] === $startHour);
+                $slotStartCarbon = Carbon::parse($day['date'].sprintf(' %02d:00:00', (int) $slot['hour']), 'Asia/Jakarta');
+                $slotEndCarbon = $slotStartCarbon->copy()->addMinutes($durationMinutes);
+                $slotPm25 = (float) $slot['pm2_5'];
+                $slotDosimetry = $this->dosimetry->calculate(
+                    $slotPm25,
+                    $durationMinutes,
+                    $zone,
+                    (float) $slot['o3'],
+                    (float) $slot['pm10']
+                );
+                $slotImprovementPct = $currentPm25 > 0
+                    ? round(max(0.0, (($currentPm25 - $slotPm25) / $currentPm25) * 100), 1)
+                    : 0.0;
+
                 $windowSlots[] = [
                     'hour' => $slot['hour'],
+                    'day_label' => $day['day_label'],
+                    'start_iso' => $slotStartCarbon->toIso8601String(),
+                    'end_iso' => $slotEndCarbon->toIso8601String(),
+                    'window_display' => $slotStartCarbon->format('h:i').' - '.$slotEndCarbon->format('h:i A'),
                     'time_range' => sprintf(
                         '%02d:00 - %02d:00 %s',
                         $slot['hour'],
@@ -75,6 +94,8 @@ class ExposureEngine
                         ($slot['hour'] + 1) < 12 ? 'AM' : 'PM'
                     ),
                     'pm2_5' => $slot['pm2_5'],
+                    'projected_dose_ug' => $slotDosimetry['inhaled_dose_ug'],
+                    'improvement_pct' => $slotImprovementPct,
                     'wind_kph' => $slot['wind_kph'],
                     'wind_dir' => $slot['wind_dir'],
                     'uv' => $slot['uv'],
@@ -105,7 +126,6 @@ class ExposureEngine
         }
 
         $projectedPm25 = (float) ($todayOptimal['projected_pm2_5'] ?? 22.1);
-        $currentPm25 = (float) $current['pm2_5'];
 
         $improvementPct = $currentPm25 > 0
             ? round(max(0.0, (($currentPm25 - $projectedPm25) / $currentPm25) * 100), 2)

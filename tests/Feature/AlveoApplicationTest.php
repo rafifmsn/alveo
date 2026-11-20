@@ -212,6 +212,17 @@ class AlveoApplicationTest extends TestCase
         $response = $this->actingAs($user)->get('/finder?location=Banten');
         $response->assertOk()
             ->assertSee('Banten')
+            ->assertSee('18:00 - 19:00 PM')
             ->assertSee('lg:h-screen lg:sticky lg:top-0', false);
+    }
+
+    public function test_calendar_ics_supports_custom_selected_slot(): void
+    {
+        $user = User::factory()->create(['email_verified_at' => now()]);
+
+        $response = $this->actingAs($user)->get('/calendar/ics?lat=-6.2185&lon=106.8025&activity=running&duration=60&location=GBK&start_iso=2026-11-20T16:00:00%2B07:00&end_iso=2026-11-20T17:00:00%2B07:00&pm2_5=24.5');
+        $response->assertOk()
+            ->assertSee('DTSTART:20261120T090000Z')
+            ->assertSee('DTEND:20261120T100000Z');
     }
 }
