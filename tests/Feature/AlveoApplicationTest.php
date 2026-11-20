@@ -184,4 +184,34 @@ class AlveoApplicationTest extends TestCase
                 ],
             ]);
     }
+
+    public function test_api_v1_locations_searches_indonesia_divisions_deterministically(): void
+    {
+        $banten = $this->getJson('/api/v1/locations?q=Ban');
+        $banten->assertOk()
+            ->assertJsonStructure([
+                'data' => [
+                    '*' => ['id', 'level', 'type', 'name', 'name_en', 'label', 'lat', 'lon'],
+                ],
+            ]);
+
+        $first = $banten->json('data.0');
+        $this->assertSame('Banten', $first['name']);
+        $this->assertSame(1, $first['level']);
+
+        $jakarta = $this->getJson('/api/v1/locations?q=Jaka');
+        $jakarta->assertOk();
+        $labels = collect($jakarta->json('data'))->pluck('label')->implode(' | ');
+        $this->assertStringContainsString('Jakarta', $labels);
+    }
+
+    public function test_finder_resolves_administrative_location_and_uses_sticky_viewport_sidebar(): void
+    {
+        $user = User::factory()->create(['email_verified_at' => now()]);
+
+        $response = $this->actingAs($user)->get('/finder?location=Banten');
+        $response->assertOk()
+            ->assertSee('Banten')
+            ->assertSee('lg:h-screen lg:sticky lg:top-0', false);
+    }
 }

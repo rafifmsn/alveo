@@ -14,10 +14,84 @@
         activeDay: 0,
         copiedTelegram: false,
         locating: false,
+        locationQuery: @js($loc['name']),
+        selectedLat: @js((string) $loc['latitude']),
+        selectedLon: @js((string) $loc['longitude']),
+        suggestions: [],
+        dropdownOpen: false,
+        activeIndex: -1,
+        searchingLocations: false,
+        searchTimer: null,
         copyTelegramCard(text) {
             navigator.clipboard.writeText(text);
             this.copiedTelegram = true;
             setTimeout(() => { this.copiedTelegram = false; }, 2500);
+        },
+        onLocationInput() {
+            this.selectedLat = '';
+            this.selectedLon = '';
+            this.activeIndex = -1;
+            clearTimeout(this.searchTimer);
+            const q = this.locationQuery.trim();
+            if (q.length < 2) {
+                this.suggestions = [];
+                this.dropdownOpen = false;
+                return;
+            }
+            this.searchTimer = setTimeout(() => this.fetchLocations(q), 180);
+        },
+        async fetchLocations(q) {
+            this.searchingLocations = true;
+            try {
+                const res = await fetch(`{{ route('api.locations.search') }}?q=${encodeURIComponent(q)}&limit=4`, {
+                    headers: { 'Accept': 'application/json' }
+                });
+                if (!res.ok) return;
+                const payload = await res.json();
+                this.suggestions = Array.isArray(payload.data) ? payload.data : [];
+                this.dropdownOpen = this.suggestions.length > 0;
+            } finally {
+                this.searchingLocations = false;
+            }
+        },
+        selectSuggestion(item) {
+            this.locationQuery = item.label;
+            this.selectedLat = String(item.lat);
+            this.selectedLon = String(item.lon);
+            this.dropdownOpen = false;
+            this.activeIndex = -1;
+            const url = new URL(window.location.href);
+            url.searchParams.set('location', item.label);
+            url.searchParams.set('lat', Number(item.lat).toFixed(4));
+            url.searchParams.set('lon', Number(item.lon).toFixed(4));
+            url.searchParams.set('activity', @js($act));
+            url.searchParams.set('duration', @js((string) $dur));
+            url.searchParams.delete('route_id');
+            window.location.href = url.toString();
+        },
+        moveSelection(step) {
+            if (!this.dropdownOpen || this.suggestions.length === 0) return;
+            const max = this.suggestions.length - 1;
+            if (this.activeIndex < 0) {
+                this.activeIndex = step > 0 ? 0 : max;
+            } else {
+                this.activeIndex = (this.activeIndex + step + this.suggestions.length) % this.suggestions.length;
+            }
+        },
+        handleLocationKeydown(event) {
+            if (event.key === 'ArrowDown') {
+                event.preventDefault();
+                this.moveSelection(1);
+            } else if (event.key === 'ArrowUp') {
+                event.preventDefault();
+                this.moveSelection(-1);
+            } else if (event.key === 'Escape') {
+                this.dropdownOpen = false;
+                this.activeIndex = -1;
+            } else if (event.key === 'Enter' && this.dropdownOpen && this.activeIndex >= 0 && this.suggestions[this.activeIndex]) {
+                event.preventDefault();
+                this.selectSuggestion(this.suggestions[this.activeIndex]);
+            }
         },
         useBrowserGps() {
             if (!navigator.geolocation) return;
@@ -105,14 +179,23 @@
     </div>
 
     <!-- Search & Activity Control Bar -->
-    <form method="GET" action="{{ route('finder') }}" class="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-4 shadow-2xs space-y-3.5">
+    <form method="GET" action="{{ route('finder') }}" @click.outside="dropdownOpen = false" class="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-4 shadow-2xs space-y-3.5">
+        <input type="hidden" name="activity" value="{{ $act }}" />
+        <input type="hidden" name="duration" value="{{ $dur }}" />
+        <input type="hidden" name="lat" :value="selectedLat" :disabled="!selectedLat" />
+        <input type="hidden" name="lon" :value="selectedLon" :disabled="!selectedLon" />
+
         <div class="flex flex-col md:flex-row items-stretch md:items-center gap-2.5">
             <div class="relative flex-1 flex items-center">
                 <x-icon name="map-pin" class="w-4 h-4 text-slate-400 absolute left-3.5 pointer-events-none" />
                 <input type="text"
                        name="location"
-                       value="{{ $loc['name'] }}"
-                       placeholder="Enter training corridor (e.g., GBK Outer Perimeter, Sudirman, PIK)"
+                       x-model="locationQuery"
+                       @input="onLocationInput()"
+                       @focus="if (suggestions.length > 0) dropdownOpen = true"
+                       @keydown="handleLocationKeydown($event)"
+                       autocomplete="off"
+                       placeholder="Search Indonesia province, city, or district (e.g., Banten, Bandung, Tanah Abang)"
                        class="input input-bordered w-full pl-10 pr-24 bg-slate-50/70 dark:bg-slate-800/70 border-slate-200 dark:border-slate-700 focus:border-forest-800 text-sm rounded-xl h-11" />
                 <button type="button"
                         @click="useBrowserGps()"
@@ -140,6 +223,26 @@
                     <x-icon name="arrow-right" class="w-4 h-4" />
                 </button>
             </div>
+        </div>
+
+        <!-- Inline Location Suggestions (Max 4, inside Search & Activity Control Bar) -->
+        <div x-show="dropdownOpen && suggestions.length > 0"
+             x-cloak
+             class="rounded-xl border border-slate-200/90 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-800/60 divide-y divide-slate-200/70 dark:divide-slate-700/70 overflow-hidden">
+            <template x-for="(item, idx) in suggestions" :key="item.id">
+                <button type="button"
+                        @click="selectSuggestion(item)"
+                        @mouseenter="activeIndex = idx"
+                        :class="activeIndex === idx ? 'bg-forest-50 dark:bg-forest-950/70' : 'hover:bg-white dark:hover:bg-slate-800'"
+                        class="w-full px-3.5 py-2.5 text-left flex items-center justify-between gap-3 transition">
+                    <div class="min-w-0">
+                        <p class="text-sm font-medium text-slate-900 dark:text-white truncate" x-text="item.label"></p>
+                        <p class="text-[11px] text-slate-500 dark:text-slate-400 tabular-nums" x-text="`${Number(item.lat).toFixed(4)}, ${Number(item.lon).toFixed(4)}`"></p>
+                    </div>
+                    <span class="shrink-0 px-2 py-0.5 rounded-md text-[10px] font-semibold uppercase tracking-wider bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-700 text-slate-600 dark:text-slate-300"
+                          x-text="item.type"></span>
+                </button>
+            </template>
         </div>
 
         <!-- Activity & Duration Pills -->

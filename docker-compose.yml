@@ -33,7 +33,6 @@ services:
         condition: service_healthy
     networks:
       - alveo-net
-      - caddy_proxy
 
   db:
     <<: *default-logging
@@ -69,7 +68,6 @@ services:
         condition: service_healthy
     networks:
       - alveo-net
-      - caddy_proxy
 
 volumes:
   pgdata:
@@ -77,5 +75,3 @@ volumes:
 networks:
   alveo-net:
     driver: bridge
-  caddy_proxy:
-    external: true

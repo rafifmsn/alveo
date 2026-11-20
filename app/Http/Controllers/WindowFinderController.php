@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\SavedRoute;
 use App\Services\ExposureEngine;
+use App\Services\IndonesiaLocationService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -12,7 +13,8 @@ use Illuminate\View\View;
 class WindowFinderController extends Controller
 {
     public function __construct(
-        protected ExposureEngine $engine
+        protected ExposureEngine $engine,
+        protected IndonesiaLocationService $locations
     ) {}
 
     public function index(Request $request): View
@@ -50,6 +52,12 @@ class WindowFinderController extends Controller
                 $lon = (float) $matched->longitude;
                 $locationLabel = $matched->name;
                 $selectedRoute = $matched;
+            } elseif ($adminMatch = $this->locations->findByQuery((string) $locationLabel)) {
+                if ($adminMatch['lat'] !== null && $adminMatch['lon'] !== null) {
+                    $lat = (float) $adminMatch['lat'];
+                    $lon = (float) $adminMatch['lon'];
+                    $locationLabel = (string) $adminMatch['label'];
+                }
             }
         }
 
@@ -97,6 +105,21 @@ class WindowFinderController extends Controller
         return response($ics, 200, [
             'Content-Type' => 'text/calendar; charset=utf-8',
             'Content-Disposition' => 'attachment; filename="alveo-clean-window.ics"',
+        ]);
+    }
+
+    public function searchLocations(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'q' => ['nullable', 'string', 'max:100'],
+            'limit' => ['nullable', 'integer', 'min:1', 'max:25'],
+        ]);
+
+        $query = (string) ($validated['q'] ?? '');
+        $limit = (int) ($validated['limit'] ?? 4);
+
+        return response()->json([
+            'data' => $this->locations->search($query, $limit),
         ]);
     }
 
