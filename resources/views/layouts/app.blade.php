@@ -115,10 +115,10 @@
 
     <div class="min-h-screen flex flex-col lg:flex-row">
         <!-- Sidebar Navigation -->
-        <aside class="w-full lg:w-64 lg:min-h-screen bg-white dark:bg-slate-900 border-b lg:border-b-0 lg:border-r border-slate-200/90 dark:border-slate-800 flex flex-col justify-between shrink-0">
-            <div>
+        <aside class="w-full lg:w-64 lg:h-screen lg:sticky lg:top-0 bg-white dark:bg-slate-900 border-b lg:border-b-0 lg:border-r border-slate-200/90 dark:border-slate-800 flex flex-col justify-between shrink-0">
+            <div class="flex-1 min-h-0 flex flex-col">
                 <!-- Brand Header: Alveo SVG Logo -->
-                <div class="h-20 px-7 flex items-center justify-between border-b border-slate-200/80 dark:border-slate-800">
+                <div class="h-20 px-7 flex items-center justify-between border-b border-slate-200/80 dark:border-slate-800 shrink-0">
                     <a href="{{ route('finder') }}" class="flex items-center">
                         <img src="{{ asset('images/alveo-dark.svg') }}"
                              alt="Alveo"
@@ -138,7 +138,7 @@
                 </div>
 
                 <!-- Navigation Links -->
-                <nav class="p-4 space-y-1.5" :class="{ 'hidden lg:block': !mobileNavOpen, 'block': mobileNavOpen }">
+                <nav class="p-4 space-y-1.5 overflow-y-auto" :class="{ 'hidden lg:block': !mobileNavOpen, 'block': mobileNavOpen }">
                     @foreach ($navItems as $item)
                         <a href="{{ route($item['route']) }}"
                            class="flex items-center gap-3.5 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-150 {{ $item['active']

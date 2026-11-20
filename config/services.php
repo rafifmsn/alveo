@@ -1,9 +1,9 @@
 <?php
 
 return [
-    'weatherapi' => [
-        'key' => env('WEATHERAPI_KEY', ''),
-        'base_url' => env('WEATHERAPI_BASE_URL', 'https://api.weatherapi.com/v1'),
-        'cache_ttl' => (int) env('WEATHERAPI_CACHE_TTL', 2700),
+    'visualcrossing' => [
+        'key' => env('VISUALCROSSING_KEY', ''),
+        'base_url' => env('VISUALCROSSING_BASE_URL', 'https://weather.visualcrossing.com/VisualCrossingWebServices/rest/services'),
+        'cache_ttl' => (int) env('VISUALCROSSING_CACHE_TTL', 3600),
     ],
 ];

@@ -23,8 +23,8 @@ class SettingsController extends Controller
         return view('pages.settings', [
             'user' => $user,
             'cacheEntriesCount' => $cacheEntriesCount,
-            'weatherApiConfigured' => config('services.weatherapi.key', '') !== '',
-            'cacheTtlMinutes' => (int) round(config('services.weatherapi.cache_ttl', 2700) / 60),
+            'visualCrossingConfigured' => config('services.visualcrossing.key', '') !== '',
+            'cacheTtlMinutes' => (int) round(config('services.visualcrossing.cache_ttl', 3600) / 60),
         ]);
     }
 

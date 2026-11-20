@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\SavedRoute;
 use App\Services\ExposureEngine;
+use App\Services\IndonesiaLocationService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -12,7 +13,8 @@ use Illuminate\View\View;
 class WindowFinderController extends Controller
 {
     public function __construct(
-        protected ExposureEngine $engine
+        protected ExposureEngine $engine,
+        protected IndonesiaLocationService $locations
     ) {}
 
     public function index(Request $request): View
@@ -50,6 +52,12 @@ class WindowFinderController extends Controller
                 $lon = (float) $matched->longitude;
                 $locationLabel = $matched->name;
                 $selectedRoute = $matched;
+            } elseif ($adminMatch = $this->locations->findByQuery((string) $locationLabel)) {
+                if ($adminMatch['lat'] !== null && $adminMatch['lon'] !== null) {
+                    $lat = (float) $adminMatch['lat'];
+                    $lon = (float) $adminMatch['lon'];
+                    $locationLabel = (string) $adminMatch['label'];
+                }
             }
         }
 
@@ -92,11 +100,45 @@ class WindowFinderController extends Controller
         $threshold = $request->user() ? $request->user()->pm25Threshold() : 35.0;
 
         $evaluation = $this->engine->evaluate($lat, $lon, $activity, $duration, $threshold, $location);
-        $ics = $evaluation['actions']['ics_download_payload'];
+
+        if ($request->filled('start_iso') && $request->filled('end_iso')) {
+            $pm25 = (float) $request->input('pm2_5', $evaluation['recommendation']['projected_pm2_5']);
+            $currentPm25 = (float) $evaluation['current_conditions']['pm2_5'];
+            $improvementPct = $currentPm25 > 0
+                ? round(max(0.0, (($currentPm25 - $pm25) / $currentPm25) * 100), 1)
+                : 0.0;
+
+            $ics = $this->engine->generateIcsPayload(
+                $evaluation['location']['name'],
+                $activity,
+                (string) $request->input('start_iso'),
+                (string) $request->input('end_iso'),
+                $pm25,
+                $improvementPct,
+                $evaluation['ai_briefing']
+            );
+        } else {
+            $ics = $evaluation['actions']['ics_download_payload'];
+        }
 
         return response($ics, 200, [
             'Content-Type' => 'text/calendar; charset=utf-8',
             'Content-Disposition' => 'attachment; filename="alveo-clean-window.ics"',
+        ]);
+    }
+
+    public function searchLocations(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'q' => ['nullable', 'string', 'max:100'],
+            'limit' => ['nullable', 'integer', 'min:1', 'max:25'],
+        ]);
+
+        $query = (string) ($validated['q'] ?? '');
+        $limit = (int) ($validated['limit'] ?? 4);
+
+        return response()->json([
+            'data' => $this->locations->search($query, $limit),
         ]);
     }
 

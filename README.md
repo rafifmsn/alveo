@@ -20,11 +20,11 @@ It computes minute-ventilation across athletic heart rate zones, evaluates conti
    git clone https://github.com/your-username/alveo.git
    cd alveo
    ```
-2. Copy the environment file and set your WeatherAPI key:
+2. Copy the environment file and set your Visual Crossing API key:
    ```bash
    cp .env.example .env
    ```
-   Add your API key to `WEATHERAPI_KEY` in `.env` (optional; the built-in deterministic model serves realistic data if left blank).
+   Add your API key to `VISUALCROSSING_KEY` in `.env` (optional; the built-in deterministic model serves realistic data if left blank).
 3. Start the containers using Docker Compose:
    ```bash
    docker compose up -d --build
@@ -115,14 +115,14 @@ flowchart LR
     Auth -->|Verified| Controllers[Domain Controllers]
     Controllers --> Engine[ExposureEngine & Dosimetry]
     Engine --> CacheRepo[(PostgreSQL Cache)]
-    CacheRepo -->|Cache Hit < 45m| Response[Calculated Verdict & Action Links]
-    CacheRepo -->|Cache Miss| WeatherAPI[WeatherAPI v1 Forecast]
-    WeatherAPI -->|Hourly AQI + Wind| CacheRepo
+    CacheRepo -->|Cache Hit < 60m| Response[Calculated Verdict & Action Links]
+    CacheRepo -->|Cache Miss| VisualCrossing[Visual Crossing Timeline API]
+    VisualCrossing -->|Hourly AQI + Wind| CacheRepo
 ```
 
 Alveo operates as a stateless computational pipeline with on-demand database caching.
 Requests pass through Laravel session authentication and the verification gate before reaching domain controllers.
-Atmospheric forecasts are cached in PostgreSQL for 45 minutes per coordinate grid, eliminating redundant upstream calls and keeping the system fully within the WeatherAPI Free Tier.
+Atmospheric forecasts are cached in PostgreSQL for 60 minutes per coordinate grid, eliminating redundant upstream calls and keeping the system within the Visual Crossing Free Tier (1,000 records/day).
 
 ## Documentation Index
 
@@ -130,4 +130,5 @@ Explore the detailed architecture and engineering rationale in the documentation
 
 - [Architecture Guide](docs/architecture.md): Complete technical breakdown, component directory cheatsheet, dosimetry formulas, and database schemas.
 - [Architecture Decision Records](docs/decisions.md): Engineering rationales for API provider selection, caching strategy, and the verification gate.
-- [WeatherAPI Documentation Map](docs/weatherapi/INDEX.md): Line-by-line index of upstream parameters, error codes, and air quality schemas.
+- [Visual Crossing Documentation Map](docs/visualcrossing/INDEX.md): Line-by-line index of Timeline API parameters, response elements, and air quality schemas.
+- [Visual Crossing Pricing & Limits](docs/visualcrossing/pricing.md): Plan comparison, 1,000 records/day quota details, and concurrency constraints.

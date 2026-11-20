@@ -12,12 +12,160 @@
 
 <div x-data="{
         activeDay: 0,
+        selectedDayIdx: 0,
+        selectedSlot: @js(collect($evaluation['timeline_days'][0]['slots'] ?? [])->firstWhere('is_optimal', true) ?? ($evaluation['timeline_days'][0]['slots'][0] ?? null)),
         copiedTelegram: false,
         locating: false,
+        locationQuery: @js($loc['name']),
+        selectedLat: @js((string) $loc['latitude']),
+        selectedLon: @js((string) $loc['longitude']),
+        suggestions: [],
+        dropdownOpen: false,
+        activeIndex: -1,
+        searchingLocations: false,
+        searchTimer: null,
+        selectTimelineSlot(dayIdx, slot) {
+            this.selectedDayIdx = dayIdx;
+            this.selectedSlot = slot;
+        },
+        formatCompactUtc(iso) {
+            const d = new Date(iso);
+            const pad = (n) => String(n).padStart(2, '0');
+            return `${d.getUTCFullYear()}${pad(d.getUTCMonth() + 1)}${pad(d.getUTCDate())}T${pad(d.getUTCHours())}${pad(d.getUTCMinutes())}${pad(d.getUTCSeconds())}Z`;
+        },
+        formatIsoUtc(iso) {
+            return new Date(iso).toISOString().replace(/\.\d{3}Z$/, 'Z');
+        },
+        calendarDetails() {
+            const slot = this.selectedSlot;
+            if (!slot) return @js($evaluation['ai_briefing']);
+            const label = slot.is_optimal ? 'Optimal Aerobic Window' : 'Selected Training Window';
+            return `${label} verified by Alveo.\nProjected PM2.5: ${Number(slot.pm2_5).toFixed(1)} ug/m3 (-${Math.round(slot.improvement_pct)}% inhaled exposure)\n\nMicro-Meteorological Analysis:\n` + @js($evaluation['ai_briefing']);
+        },
+        calendarTitle() {
+            return @js(sprintf('Alveo Clean-Air %s Session (%s)', ucfirst($act), $loc['name']));
+        },
+        get googleCalendarUrl() {
+            if (!this.selectedSlot) return @js($evaluation['actions']['google_calendar_url']);
+            const params = new URLSearchParams({
+                action: 'TEMPLATE',
+                text: this.calendarTitle(),
+                dates: `${this.formatCompactUtc(this.selectedSlot.start_iso)}/${this.formatCompactUtc(this.selectedSlot.end_iso)}`,
+                details: this.calendarDetails(),
+                location: @js($loc['name']),
+            });
+            return `https://calendar.google.com/calendar/render?${params.toString()}`;
+        },
+        outlookUrl(host) {
+            if (!this.selectedSlot) return host.includes('office') ? @js($evaluation['actions']['m365_calendar_url']) : @js($evaluation['actions']['outlook_calendar_url']);
+            const params = new URLSearchParams({
+                path: '/calendar/action/compose',
+                rru: 'addevent',
+                subject: this.calendarTitle(),
+                startdt: this.formatIsoUtc(this.selectedSlot.start_iso),
+                enddt: this.formatIsoUtc(this.selectedSlot.end_iso),
+                body: this.calendarDetails(),
+                location: @js($loc['name']),
+            });
+            return `https://${host}/calendar/0/deeplink/compose?${params.toString()}`;
+        },
+        get m365CalendarUrl() {
+            return this.outlookUrl('outlook.office.com');
+        },
+        get outlookCalendarUrl() {
+            return this.outlookUrl('outlook.live.com');
+        },
+        get yahooCalendarUrl() {
+            if (!this.selectedSlot) return @js($evaluation['actions']['yahoo_calendar_url']);
+            const params = new URLSearchParams({
+                v: '60',
+                title: this.calendarTitle(),
+                st: this.formatCompactUtc(this.selectedSlot.start_iso),
+                et: this.formatCompactUtc(this.selectedSlot.end_iso),
+                desc: this.calendarDetails(),
+                in_loc: @js($loc['name']),
+            });
+            return `https://calendar.yahoo.com/?${params.toString()}`;
+        },
+        get icsDownloadUrl() {
+            const base = @js(route('calendar.ics', ['lat' => $loc['latitude'], 'lon' => $loc['longitude'], 'activity' => $act, 'duration' => $dur, 'location' => $loc['name']]));
+            if (!this.selectedSlot) return base;
+            const url = new URL(base, window.location.origin);
+            url.searchParams.set('start_iso', this.selectedSlot.start_iso);
+            url.searchParams.set('end_iso', this.selectedSlot.end_iso);
+            url.searchParams.set('pm2_5', String(this.selectedSlot.pm2_5));
+            return url.toString();
+        },
         copyTelegramCard(text) {
             navigator.clipboard.writeText(text);
             this.copiedTelegram = true;
             setTimeout(() => { this.copiedTelegram = false; }, 2500);
+        },
+        onLocationInput() {
+            this.selectedLat = '';
+            this.selectedLon = '';
+            this.activeIndex = -1;
+            clearTimeout(this.searchTimer);
+            const q = this.locationQuery.trim();
+            if (q.length < 2) {
+                this.suggestions = [];
+                this.dropdownOpen = false;
+                return;
+            }
+            this.searchTimer = setTimeout(() => this.fetchLocations(q), 180);
+        },
+        async fetchLocations(q) {
+            this.searchingLocations = true;
+            try {
+                const res = await fetch(`{{ route('api.locations.search') }}?q=${encodeURIComponent(q)}&limit=4`, {
+                    headers: { 'Accept': 'application/json' }
+                });
+                if (!res.ok) return;
+                const payload = await res.json();
+                this.suggestions = Array.isArray(payload.data) ? payload.data : [];
+                this.dropdownOpen = this.suggestions.length > 0;
+            } finally {
+                this.searchingLocations = false;
+            }
+        },
+        selectSuggestion(item) {
+            this.locationQuery = item.label;
+            this.selectedLat = String(item.lat);
+            this.selectedLon = String(item.lon);
+            this.dropdownOpen = false;
+            this.activeIndex = -1;
+            const url = new URL(window.location.href);
+            url.searchParams.set('location', item.label);
+            url.searchParams.set('lat', Number(item.lat).toFixed(4));
+            url.searchParams.set('lon', Number(item.lon).toFixed(4));
+            url.searchParams.set('activity', @js($act));
+            url.searchParams.set('duration', @js((string) $dur));
+            url.searchParams.delete('route_id');
+            window.location.href = url.toString();
+        },
+        moveSelection(step) {
+            if (!this.dropdownOpen || this.suggestions.length === 0) return;
+            const max = this.suggestions.length - 1;
+            if (this.activeIndex < 0) {
+                this.activeIndex = step > 0 ? 0 : max;
+            } else {
+                this.activeIndex = (this.activeIndex + step + this.suggestions.length) % this.suggestions.length;
+            }
+        },
+        handleLocationKeydown(event) {
+            if (event.key === 'ArrowDown') {
+                event.preventDefault();
+                this.moveSelection(1);
+            } else if (event.key === 'ArrowUp') {
+                event.preventDefault();
+                this.moveSelection(-1);
+            } else if (event.key === 'Escape') {
+                this.dropdownOpen = false;
+                this.activeIndex = -1;
+            } else if (event.key === 'Enter' && this.dropdownOpen && this.activeIndex >= 0 && this.suggestions[this.activeIndex]) {
+                event.preventDefault();
+                this.selectSuggestion(this.suggestions[this.activeIndex]);
+            }
         },
         useBrowserGps() {
             if (!navigator.geolocation) return;
@@ -105,14 +253,23 @@
     </div>
 
     <!-- Search & Activity Control Bar -->
-    <form method="GET" action="{{ route('finder') }}" class="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-4 shadow-2xs space-y-3.5">
+    <form method="GET" action="{{ route('finder') }}" @click.outside="dropdownOpen = false" class="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-4 shadow-2xs space-y-3.5">
+        <input type="hidden" name="activity" value="{{ $act }}" />
+        <input type="hidden" name="duration" value="{{ $dur }}" />
+        <input type="hidden" name="lat" :value="selectedLat" :disabled="!selectedLat" />
+        <input type="hidden" name="lon" :value="selectedLon" :disabled="!selectedLon" />
+
         <div class="flex flex-col md:flex-row items-stretch md:items-center gap-2.5">
             <div class="relative flex-1 flex items-center">
                 <x-icon name="map-pin" class="w-4 h-4 text-slate-400 absolute left-3.5 pointer-events-none" />
                 <input type="text"
                        name="location"
-                       value="{{ $loc['name'] }}"
-                       placeholder="Enter training corridor (e.g., GBK Outer Perimeter, Sudirman, PIK)"
+                       x-model="locationQuery"
+                       @input="onLocationInput()"
+                       @focus="if (suggestions.length > 0) dropdownOpen = true"
+                       @keydown="handleLocationKeydown($event)"
+                       autocomplete="off"
+                       placeholder="Search Indonesia province, city, or district (e.g., Banten, Bandung, Tanah Abang)"
                        class="input input-bordered w-full pl-10 pr-24 bg-slate-50/70 dark:bg-slate-800/70 border-slate-200 dark:border-slate-700 focus:border-forest-800 text-sm rounded-xl h-11" />
                 <button type="button"
                         @click="useBrowserGps()"
@@ -140,6 +297,26 @@
                     <x-icon name="arrow-right" class="w-4 h-4" />
                 </button>
             </div>
+        </div>
+
+        <!-- Inline Location Suggestions (Max 4, inside Search & Activity Control Bar) -->
+        <div x-show="dropdownOpen && suggestions.length > 0"
+             x-cloak
+             class="rounded-xl border border-slate-200/90 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-800/60 divide-y divide-slate-200/70 dark:divide-slate-700/70 overflow-hidden">
+            <template x-for="(item, idx) in suggestions" :key="item.id">
+                <button type="button"
+                        @click="selectSuggestion(item)"
+                        @mouseenter="activeIndex = idx"
+                        :class="activeIndex === idx ? 'bg-forest-50 dark:bg-forest-950/70' : 'hover:bg-white dark:hover:bg-slate-800'"
+                        class="w-full px-3.5 py-2.5 text-left flex items-center justify-between gap-3 transition">
+                    <div class="min-w-0">
+                        <p class="text-sm font-medium text-slate-900 dark:text-white truncate" x-text="item.label"></p>
+                        <p class="text-[11px] text-slate-500 dark:text-slate-400 tabular-nums" x-text="`${Number(item.lat).toFixed(4)}, ${Number(item.lon).toFixed(4)}`"></p>
+                    </div>
+                    <span class="shrink-0 px-2 py-0.5 rounded-md text-[10px] font-semibold uppercase tracking-wider bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-700 text-slate-600 dark:text-slate-300"
+                          x-text="item.type"></span>
+                </button>
+            </template>
         </div>
 
         <!-- Activity & Duration Pills -->
@@ -176,37 +353,23 @@
     <!-- Main 2-Column Operational Layout -->
     <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
 
-        <!-- Left Column: Go / Postpone Verdict Hero Card (5 cols) -->
+        <!-- Left Column: Recommended Window Hero Card (5 cols) -->
         <div class="lg:col-span-5 bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-6 lg:p-7 shadow-2xs space-y-6">
-            <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
-                @if ($isDelay)
-                    <span class="inline-flex items-center gap-2 px-3.5 py-1 rounded-full text-xs font-bold tracking-wide uppercase bg-amber-50 dark:bg-amber-950/80 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800">
-                        <span class="w-2 h-2 rounded-full bg-amber-500"></span>
-                        Postpone Session
-                    </span>
-                @else
-                    <span class="inline-flex items-center gap-2 px-3.5 py-1 rounded-full text-xs font-bold tracking-wide uppercase bg-forest-50 dark:bg-forest-950 text-forest-900 dark:text-forest-300 border border-forest-200 dark:border-forest-800">
-                        <span class="w-2 h-2 rounded-full bg-forest-600"></span>
-                        Go - Clear Window
-                    </span>
-                @endif
-
-                <span class="text-xs font-semibold tracking-wider uppercase text-slate-400 dark:text-slate-500 tabular-nums">
-                    {{ $rec['delta_label'] }}
-                </span>
-            </div>
-
             <div>
-                <p class="text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                <p class="text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500"
+                   x-text="selectedSlot && !selectedSlot.is_optimal ? `Selected Training Window (${selectedSlot.day_label})` : 'Optimal Rescheduled Window'">
                     Optimal Rescheduled Window
                 </p>
-                <h2 class="mt-1.5 text-3xl sm:text-4xl font-extrabold tracking-tight text-slate-900 dark:text-white tabular-nums">
+                <h2 class="mt-1.5 text-3xl sm:text-4xl font-extrabold tracking-tight text-slate-900 dark:text-white tabular-nums"
+                    x-text="selectedSlot ? selectedSlot.window_display : @js($rec['window_display'])">
                     {{ $rec['window_display'] }}
                 </h2>
 
                 <div class="mt-3 inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold bg-forest-50 dark:bg-forest-950/90 text-forest-800 dark:text-forest-300 border border-forest-200/70 dark:border-forest-800 tabular-nums">
                     <x-icon name="arrow-down" class="w-3.5 h-3.5 text-forest-700 dark:text-forest-400" />
-                    <span>-{{ round($rec['improvement_pct']) }}% Inhaled PM2.5 Exposure ({{ $rec['projected_dose_ug'] }} µg vs {{ $cur['inhaled_dose_ug'] }} µg)</span>
+                    <span x-text="selectedSlot ? `-${Math.round(selectedSlot.improvement_pct)}% Inhaled PM2.5 Exposure (${selectedSlot.projected_dose_ug} µg vs {{ $cur['inhaled_dose_ug'] }} µg)` : '-{{ round($rec['improvement_pct']) }}% Inhaled PM2.5 Exposure ({{ $rec['projected_dose_ug'] }} µg vs {{ $cur['inhaled_dose_ug'] }} µg)'">
+                        -{{ round($rec['improvement_pct']) }}% Inhaled PM2.5 Exposure ({{ $rec['projected_dose_ug'] }} µg vs {{ $cur['inhaled_dose_ug'] }} µg)
+                    </span>
                 </div>
             </div>
 
@@ -223,7 +386,8 @@
 
             <!-- Zero-Overhead Client Action Buttons -->
             <div class="pt-1">
-                <a href="{{ $evaluation['actions']['google_calendar_url'] }}"
+                <a :href="googleCalendarUrl"
+                   href="{{ $evaluation['actions']['google_calendar_url'] }}"
                    target="_blank"
                    rel="noopener noreferrer"
                    class="btn w-full bg-forest-900 hover:bg-forest-800 text-white border-0 rounded-xl font-semibold text-sm h-11 shadow-xs inline-flex items-center justify-center gap-2 mb-2.5">
@@ -233,28 +397,35 @@
 
                 <!-- Multi-Platform Calendar Deep Links (M365, Outlook, Yahoo, .ics) -->
                 <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-3.5 sm:mb-4">
-                    <a href="{{ $evaluation['actions']['m365_calendar_url'] }}"
+                    <a :href="m365CalendarUrl"
+                       href="{{ $evaluation['actions']['m365_calendar_url'] }}"
                        target="_blank"
                        rel="noopener noreferrer"
                        class="h-11 px-2.5 rounded-xl border border-slate-200 dark:border-slate-700 hover:border-forest-700 dark:hover:border-forest-500 bg-slate-50/70 dark:bg-slate-800/70 text-xs font-semibold text-slate-700 dark:text-slate-200 flex items-center justify-center text-center leading-tight transition">
-                        Microsoft 365
+                        <span class="lg:hidden">Microsoft 365</span>
+                        <span class="hidden lg:inline">MS365</span>
                     </a>
-                    <a href="{{ $evaluation['actions']['outlook_calendar_url'] }}"
+                    <a :href="outlookCalendarUrl"
+                       href="{{ $evaluation['actions']['outlook_calendar_url'] }}"
                        target="_blank"
                        rel="noopener noreferrer"
                        class="h-11 px-2.5 rounded-xl border border-slate-200 dark:border-slate-700 hover:border-forest-700 dark:hover:border-forest-500 bg-slate-50/70 dark:bg-slate-800/70 text-xs font-semibold text-slate-700 dark:text-slate-200 flex items-center justify-center text-center transition">
                         Outlook
                     </a>
-                    <a href="{{ $evaluation['actions']['yahoo_calendar_url'] }}"
+                    <a :href="yahooCalendarUrl"
+                       href="{{ $evaluation['actions']['yahoo_calendar_url'] }}"
                        target="_blank"
                        rel="noopener noreferrer"
                        class="h-11 px-2.5 rounded-xl border border-slate-200 dark:border-slate-700 hover:border-forest-700 dark:hover:border-forest-500 bg-slate-50/70 dark:bg-slate-800/70 text-xs font-semibold text-slate-700 dark:text-slate-200 flex items-center justify-center text-center transition">
-                        Yahoo Cal
+                        <span class="lg:hidden">Yahoo Cal</span>
+                        <span class="hidden lg:inline">Yahoo</span>
                     </a>
-                    <a href="{{ route('calendar.ics', ['lat' => $loc['latitude'], 'lon' => $loc['longitude'], 'activity' => $act, 'duration' => $dur, 'location' => $loc['name']]) }}"
+                    <a :href="icsDownloadUrl"
+                       href="{{ route('calendar.ics', ['lat' => $loc['latitude'], 'lon' => $loc['longitude'], 'activity' => $act, 'duration' => $dur, 'location' => $loc['name']]) }}"
                        class="h-11 px-2.5 rounded-xl border border-slate-200 dark:border-slate-700 hover:border-forest-700 dark:hover:border-forest-500 bg-slate-50/70 dark:bg-slate-800/70 text-xs font-semibold text-slate-700 dark:text-slate-200 flex items-center justify-center text-center gap-1.5 transition">
                         <x-icon name="download" class="w-3.5 h-3.5 shrink-0" />
-                        <span>.ics File</span>
+                        <span class="lg:hidden">.ics File</span>
+                        <span class="hidden lg:inline">.ics</span>
                     </a>
                 </div>
 
@@ -309,15 +480,20 @@
                 </div>
             </div>
 
-            <!-- Hourly Slots List for Active Day -->
+            <!-- Hourly Slots List for Active Day (06:00-18:00, scrollable 6-row viewport) -->
             @foreach ($evaluation['timeline_days'] as $dIdx => $tDay)
                 <div x-show="activeDay === {{ $dIdx }}"
                      x-cloak
-                     class="space-y-2.5">
+                     class="max-h-[460px] overflow-y-auto pr-2 space-y-2.5">
                     @foreach ($tDay['slots'] as $slot)
-                        <div class="flex items-center justify-between p-4 rounded-2xl border transition {{ $slot['is_optimal']
-                            ? 'bg-forest-50/90 dark:bg-forest-950/70 border-forest-300 dark:border-forest-700 shadow-2xs'
-                            : 'bg-white dark:bg-slate-900 border-slate-200/80 dark:border-slate-800' }}">
+                        <button type="button"
+                                @click="selectTimelineSlot({{ $dIdx }}, @js($slot))"
+                                :class="selectedSlot && selectedSlot.start_iso === @js($slot['start_iso'])
+                                    ? 'border-forest-700 dark:border-forest-500 ring-1 ring-inset ring-forest-700/60 dark:ring-forest-500/60'
+                                    : ''"
+                                class="w-full text-left flex items-center justify-between p-4 rounded-2xl border transition cursor-pointer {{ $slot['is_optimal']
+                                    ? 'bg-forest-50/90 dark:bg-forest-950/70 border-forest-300 dark:border-forest-700 shadow-2xs'
+                                    : 'bg-white dark:bg-slate-900 border-slate-200/80 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700' }}">
 
                             <div class="flex items-center gap-3.5">
                                 @if ($slot['is_optimal'])
@@ -359,49 +535,61 @@
                                     {{ $slot['wind_kph'] }} km/h {{ $slot['wind_dir'] }}
                                 </p>
                             </div>
-                        </div>
+                        </button>
                     @endforeach
                 </div>
             @endforeach
 
             <!-- Bottom Dispersion Probability & Air Clearance Card -->
-            <div class="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-5 shadow-2xs space-y-3.5">
-                <div class="flex items-center justify-between">
-                    <h4 class="text-sm font-bold text-slate-900 dark:text-white">
-                        Dispersion Probability & Air Clearance
-                    </h4>
-                    <span class="text-xs font-medium text-forest-800 dark:text-forest-300 tabular-nums">
-                        Mixing Depth Peak: 09:00 - 11:00
-                    </span>
-                </div>
+            @foreach ($evaluation['timeline_days'] as $dIdx => $tDay)
+                <div x-show="activeDay === {{ $dIdx }}"
+                     x-cloak
+                     class="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-5 shadow-2xs space-y-3.5">
+                    <div class="flex items-center justify-between gap-2">
+                        <h4 class="text-sm font-bold text-slate-900 dark:text-white">
+                            Dispersion Probability & Air Clearance
+                        </h4>
+                        <span class="text-xs font-medium text-forest-800 dark:text-forest-300 tabular-nums">
+                            Optimal: {{ $tDay['short_window'] }}
+                        </span>
+                    </div>
 
-                <!-- Segmented Progression Bar -->
-                <div class="h-2.5 w-full rounded-full overflow-hidden flex bg-slate-100 dark:bg-slate-800">
-                    <div class="w-1/4 bg-red-500"></div>
-                    <div class="w-1/4 bg-amber-500"></div>
-                    <div class="w-1/4 bg-forest-700"></div>
-                    <div class="w-1/4 bg-emerald-500"></div>
-                </div>
+                    <!-- Segmented Progression Bar (06:00-18:00) -->
+                    <div class="h-2.5 w-full rounded-full overflow-hidden flex gap-px bg-slate-100 dark:bg-slate-800">
+                        @foreach ($tDay['slots'] as $slot)
+                            @php
+                                $segColor = match ($slot['severity']) {
+                                    'optimal' => 'bg-forest-700',
+                                    'low' => 'bg-emerald-500',
+                                    'moderate' => 'bg-amber-500',
+                                    'commuter' => 'bg-slate-400',
+                                    default => 'bg-red-500',
+                                };
+                            @endphp
+                            <div class="flex-1 {{ $segColor }}" title="{{ $slot['time_range'] }}: {{ round($slot['pm2_5']) }} µg/m³"></div>
+                        @endforeach
+                    </div>
 
-                <div class="grid grid-cols-4 gap-2 text-[11px] leading-tight text-slate-500 dark:text-slate-400 tabular-nums">
-                    <div>
-                        <span class="font-semibold text-slate-700 dark:text-slate-300 block">06:00</span>
-                        <span>(Stagnant)</span>
-                    </div>
-                    <div>
-                        <span class="font-semibold text-slate-700 dark:text-slate-300 block">08:00</span>
-                        <span>(Breeze Start)</span>
-                    </div>
-                    <div class="text-forest-800 dark:text-forest-300 font-semibold">
-                        <span class="block">09:00 (Clean</span>
-                        <span>Window)</span>
-                    </div>
-                    <div>
-                        <span class="font-semibold text-slate-700 dark:text-slate-300 block">11:00 (Thermal</span>
-                        <span>Mix)</span>
+                    <div class="grid grid-cols-4 gap-2 text-[11px] leading-tight text-slate-500 dark:text-slate-400 tabular-nums">
+                        <div>
+                            <span class="font-semibold text-slate-700 dark:text-slate-300 block">06:00</span>
+                            <span>Morning</span>
+                        </div>
+                        <div>
+                            <span class="font-semibold text-slate-700 dark:text-slate-300 block">10:00</span>
+                            <span>Mid-Morning</span>
+                        </div>
+                        <div>
+                            <span class="font-semibold text-slate-700 dark:text-slate-300 block">14:00</span>
+                            <span>Afternoon</span>
+                        </div>
+                        <div class="text-right">
+                            <span class="font-semibold text-slate-700 dark:text-slate-300 block">18:00</span>
+                            <span>Evening</span>
+                        </div>
                     </div>
                 </div>
-            </div>
+            @endforeach
         </div>
 
     </div>

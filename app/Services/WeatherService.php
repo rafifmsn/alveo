@@ -23,30 +23,30 @@ class WeatherService
         $lat = number_format($this->normalizeCoord($latitude), 2, '.', '');
         $lon = number_format($this->normalizeCoord($longitude), 2, '.', '');
 
-        return "weatherapi_forecast_{$lat}_{$lon}";
+        return "visualcrossing_forecast_{$lat}_{$lon}";
     }
 
     public function getForecast(float $latitude, float $longitude, ?string $locationLabel = null): array
     {
         $key = $this->cacheKey($latitude, $longitude);
-        $ttl = (int) config('services.weatherapi.cache_ttl', 2700);
+        $ttl = (int) config('services.visualcrossing.cache_ttl', 3600);
 
         return Cache::remember($key, $ttl, function () use ($latitude, $longitude, $locationLabel) {
-            $apiKey = (string) config('services.weatherapi.key', '');
-            $baseUrl = rtrim((string) config('services.weatherapi.base_url', 'https://api.weatherapi.com/v1'), '/');
+            $apiKey = (string) config('services.visualcrossing.key', '');
+            $baseUrl = rtrim((string) config('services.visualcrossing.base_url', 'https://weather.visualcrossing.com/VisualCrossingWebServices/rest/services'), '/');
 
             if ($apiKey !== '') {
                 try {
-                    $response = Http::timeout(6)->get("{$baseUrl}/forecast.json", [
+                    $response = Http::timeout(8)->get("{$baseUrl}/timeline/{$latitude},{$longitude}/today/next2days", [
+                        'unitGroup' => 'metric',
+                        'include' => 'hours,current',
+                        'elements' => '+pm2p5,+pm10,+o3,+no2,+so2,+co,+aqius,+aqieur',
                         'key' => $apiKey,
-                        'q' => "{$latitude},{$longitude}",
-                        'days' => 3,
-                        'aqi' => 'yes',
-                        'alerts' => 'no',
+                        'contentType' => 'json',
                     ]);
 
-                    if ($response->successful() && is_array($response->json('forecast.forecastday'))) {
-                        return $this->normalizeWeatherApiPayload($response->json(), $latitude, $longitude, $locationLabel);
+                    if ($response->successful() && is_array($response->json('days'))) {
+                        return $this->normalizeVisualCrossingPayload($response->json(), $latitude, $longitude, $locationLabel);
                     }
                 } catch (Throwable) {
                     // Fall through to deterministic micro-meteorological model
@@ -57,34 +57,57 @@ class WeatherService
         });
     }
 
-    protected function normalizeWeatherApiPayload(array $raw, float $lat, float $lon, ?string $locationLabel = null): array
+    protected function normalizeVisualCrossingPayload(array $raw, float $lat, float $lon, ?string $locationLabel = null): array
     {
-        $loc = $raw['location'] ?? [];
-        $cur = $raw['current'] ?? [];
-        $curAqi = $cur['air_quality'] ?? [];
+        $cur = $raw['currentConditions'] ?? [];
+        $tzId = (string) ($raw['timezone'] ?? 'Asia/Jakarta');
 
-        $pm25 = (float) ($curAqi['pm2_5'] ?? 38.0);
-        $pm10 = (float) ($curAqi['pm10'] ?? ($pm25 * 1.45));
-        $o3 = (float) ($curAqi['o3'] ?? 48.0);
-        $no2 = (float) ($curAqi['no2'] ?? 24.0);
-        $so2 = (float) ($curAqi['so2'] ?? 8.5);
-        $co = (float) ($curAqi['co'] ?? 420.0);
+        $curPm25 = (float) ($cur['pm2p5'] ?? 38.0);
+        $curPm10 = (float) ($cur['pm10'] ?? ($curPm25 * 1.45));
+        $curO3 = (float) ($cur['o3'] ?? 48.0);
+        $curNo2 = (float) ($cur['no2'] ?? 24.0);
+        $curSo2 = (float) ($cur['so2'] ?? 8.5);
+        $curCo = (float) ($cur['co'] ?? 420.0);
+
+        $curHour = Carbon::now($tzId)->hour;
+        $curWindKph = (float) ($cur['windspeed'] ?? 4.2);
+        $curWindDegree = (int) round((float) ($cur['winddir'] ?? 310));
+        $curUv = (float) ($cur['uvindex'] ?? 2.0);
+        $curTempC = (float) ($cur['temp'] ?? 27.5);
+        $curDispersion = $this->diurnalDispersionFactor($curHour, $curWindKph, $curUv);
 
         $days = [];
-        foreach (($raw['forecast']['forecastday'] ?? []) as $dayIndex => $dayData) {
+        foreach (array_slice($raw['days'] ?? [], 0, 3) as $dayIndex => $dayData) {
+            $date = (string) ($dayData['datetime'] ?? Carbon::now($tzId)->addDays($dayIndex)->toDateString());
             $hours = [];
-            foreach (($dayData['hour'] ?? []) as $h) {
-                $hAqi = $h['air_quality'] ?? [];
-                $hPm25 = (float) ($hAqi['pm2_5'] ?? $pm25);
-                $hPm10 = (float) ($hAqi['pm10'] ?? ($hPm25 * 1.4));
-                $hO3 = (float) ($hAqi['o3'] ?? $o3);
-                $windKph = (float) ($h['wind_kph'] ?? 8.0);
-                $windDir = (string) ($h['wind_dir'] ?? 'NW');
-                $uv = (float) ($h['uv'] ?? 3.0);
-                $tempC = (float) ($h['temp_c'] ?? 28.0);
-                $humidity = (int) ($h['humidity'] ?? 70);
-                $timeStr = (string) ($h['time'] ?? now()->format('Y-m-d H:00'));
-                $hourNum = (int) Carbon::parse($timeStr)->format('G');
+
+            foreach (($dayData['hours'] ?? []) as $h) {
+                $hourStr = (string) ($h['datetime'] ?? '00:00:00');
+                $hourNum = (int) explode(':', $hourStr)[0];
+                $timeStr = sprintf('%s %02d:00', $date, $hourNum);
+
+                $windKph = (float) ($h['windspeed'] ?? 8.0);
+                $windDegree = (int) round((float) ($h['winddir'] ?? 315));
+                $windDir = $this->degreesToCardinal($windDegree);
+                $uv = (float) ($h['uvindex'] ?? 3.0);
+                $tempC = (float) ($h['temp'] ?? 28.0);
+                $humidity = (int) round((float) ($h['humidity'] ?? 70));
+
+                if (isset($h['pm2p5']) && $h['pm2p5'] !== null) {
+                    $hPm25 = (float) $h['pm2p5'];
+                    $hPm10 = (float) ($h['pm10'] ?? ($hPm25 * 1.4));
+                    $hO3 = (float) ($h['o3'] ?? $curO3);
+                } else {
+                    $hourDispersion = $this->diurnalDispersionFactor($hourNum, $windKph, $uv);
+                    $ratio = $curDispersion > 0 ? ($hourDispersion / $curDispersion) : 1.0;
+                    $hPm25 = max(8.0, round($curPm25 * $ratio, 1));
+                    $hPm10 = max(12.0, round($curPm10 * $ratio, 1));
+                    $hO3 = max(15.0, round($curO3 * (0.75 + ($uv * 0.06)), 1));
+                }
+
+                $usAqi = isset($h['aqius']) && $h['aqius'] !== null
+                    ? (int) round((float) $h['aqius'])
+                    : $this->dosimetry->pm25ToUsAqi($hPm25);
 
                 $hours[] = [
                     'time' => $timeStr,
@@ -96,60 +119,72 @@ class WeatherService
                     'wind_kph' => round($windKph, 1),
                     'wind_mph' => round($windKph * 0.621371, 1),
                     'wind_dir' => $windDir,
-                    'wind_degree' => (int) ($h['wind_degree'] ?? 315),
+                    'wind_degree' => $windDegree,
                     'uv' => round($uv, 1),
-                    'condition_text' => (string) ($h['condition']['text'] ?? 'Partly Cloudy'),
+                    'condition_text' => (string) ($h['conditions'] ?? 'Partly Cloudy'),
                     'pm2_5' => round($hPm25, 1),
                     'pm10' => round($hPm10, 1),
                     'o3' => round($hO3, 1),
-                    'no2' => round((float) ($hAqi['no2'] ?? $no2), 1),
-                    'so2' => round((float) ($hAqi['so2'] ?? $so2), 1),
-                    'co' => round((float) ($hAqi['co'] ?? $co), 1),
-                    'us_epa_index' => (int) ($hAqi['us-epa-index'] ?? $this->dosimetry->pm25ToEpaIndex($hPm25)),
-                    'gb_defra_index' => (int) ($hAqi['gb-defra-index'] ?? $this->dosimetry->pm25ToDefraIndex($hPm25)),
-                    'us_aqi' => $this->dosimetry->pm25ToUsAqi($hPm25),
+                    'no2' => round((float) ($h['no2'] ?? $curNo2), 1),
+                    'so2' => round((float) ($h['so2'] ?? $curSo2), 1),
+                    'co' => round((float) ($h['co'] ?? $curCo), 1),
+                    'us_epa_index' => $this->dosimetry->pm25ToEpaIndex($hPm25),
+                    'gb_defra_index' => $this->dosimetry->pm25ToDefraIndex($hPm25),
+                    'us_aqi' => $usAqi,
                     'regime_tag' => $this->describeAtmosphericRegime($hourNum, $hPm25, $windKph, $uv),
                 ];
             }
 
             $days[] = [
-                'date' => (string) ($dayData['date'] ?? now()->addDays($dayIndex)->toDateString()),
-                'day_label' => $dayIndex === 0 ? 'Today' : ($dayIndex === 1 ? 'Tomorrow' : Carbon::parse($dayData['date'] ?? now()->addDays($dayIndex))->format('l')),
+                'date' => $date,
+                'day_label' => $dayIndex === 0 ? 'Today' : ($dayIndex === 1 ? 'Tomorrow' : Carbon::parse($date, $tzId)->format('l')),
                 'hours' => $hours,
             ];
         }
 
+        $curUsAqi = isset($cur['aqius']) && $cur['aqius'] !== null
+            ? (int) round((float) $cur['aqius'])
+            : $this->dosimetry->pm25ToUsAqi($curPm25);
+
         return [
-            'source' => 'weatherapi_live',
+            'source' => 'visualcrossing_live',
             'cached_at' => now()->toIso8601String(),
             'location' => [
-                'name' => $locationLabel ?: (($loc['name'] ?? 'Jakarta').(isset($loc['region']) && $loc['region'] !== '' ? ', '.$loc['region'] : '')),
+                'name' => $locationLabel ?: $this->resolveLocationName($lat, $lon),
                 'latitude' => $lat,
                 'longitude' => $lon,
-                'tz_id' => $loc['tz_id'] ?? 'Asia/Jakarta',
+                'tz_id' => $tzId,
             ],
             'current' => [
-                'timestamp' => now()->toIso8601String(),
-                'temp_c' => round((float) ($cur['temp_c'] ?? 27.5), 1),
-                'temp_f' => round((float) ($cur['temp_f'] ?? 81.5), 1),
-                'humidity' => (int) ($cur['humidity'] ?? 74),
-                'wind_kph' => round((float) ($cur['wind_kph'] ?? 4.2), 1),
-                'wind_mph' => round((float) ($cur['wind_mph'] ?? 2.6), 1),
-                'wind_dir' => (string) ($cur['wind_dir'] ?? 'NW'),
-                'wind_degree' => (int) ($cur['wind_degree'] ?? 310),
-                'uv' => round((float) ($cur['uv'] ?? 2.0), 1),
-                'pm2_5' => round($pm25, 1),
-                'pm10' => round($pm10, 1),
-                'o3' => round($o3, 1),
-                'no2' => round($no2, 1),
-                'so2' => round($so2, 1),
-                'co' => round($co, 1),
-                'us_epa_index' => (int) ($curAqi['us-epa-index'] ?? $this->dosimetry->pm25ToEpaIndex($pm25)),
-                'gb_defra_index' => (int) ($curAqi['gb-defra-index'] ?? $this->dosimetry->pm25ToDefraIndex($pm25)),
-                'us_aqi' => $this->dosimetry->pm25ToUsAqi($pm25),
+                'timestamp' => Carbon::now($tzId)->toIso8601String(),
+                'temp_c' => round($curTempC, 1),
+                'temp_f' => round(($curTempC * 9 / 5) + 32, 1),
+                'humidity' => (int) round((float) ($cur['humidity'] ?? 74)),
+                'wind_kph' => round($curWindKph, 1),
+                'wind_mph' => round($curWindKph * 0.621371, 1),
+                'wind_dir' => $this->degreesToCardinal($curWindDegree),
+                'wind_degree' => $curWindDegree,
+                'uv' => round($curUv, 1),
+                'pm2_5' => round($curPm25, 1),
+                'pm10' => round($curPm10, 1),
+                'o3' => round($curO3, 1),
+                'no2' => round($curNo2, 1),
+                'so2' => round($curSo2, 1),
+                'co' => round($curCo, 1),
+                'us_epa_index' => $this->dosimetry->pm25ToEpaIndex($curPm25),
+                'gb_defra_index' => $this->dosimetry->pm25ToDefraIndex($curPm25),
+                'us_aqi' => $curUsAqi,
             ],
             'days' => $days,
         ];
+    }
+
+    protected function degreesToCardinal(float $degrees): string
+    {
+        $directions = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW'];
+        $index = (int) round((fmod($degrees, 360) + 360) % 360 / 22.5) % 16;
+
+        return $directions[$index];
     }
 
     public function buildDeterministicForecast(float $lat, float $lon, ?string $locationLabel = null): array
@@ -233,7 +268,8 @@ class WeatherService
             ];
         }
 
-        $baselineHour = $days[0]['hours'][6];
+        $currentHour = Carbon::now('Asia/Jakarta')->hour;
+        $baselineHour = $days[0]['hours'][$currentHour] ?? $days[0]['hours'][6];
 
         return [
             'source' => 'deterministic_model',
@@ -245,7 +281,7 @@ class WeatherService
                 'tz_id' => 'Asia/Jakarta',
             ],
             'current' => [
-                'timestamp' => Carbon::today('Asia/Jakarta')->setHour(6)->toIso8601String(),
+                'timestamp' => Carbon::now('Asia/Jakarta')->toIso8601String(),
                 'temp_c' => $baselineHour['temp_c'],
                 'temp_f' => $baselineHour['temp_f'],
                 'humidity' => $baselineHour['humidity'],
@@ -266,6 +302,25 @@ class WeatherService
             ],
             'days' => $days,
         ];
+    }
+
+    /**
+     * Estimate hourly PM2.5 relative factor from diurnal mixing, wind speed, and solar UV
+     * when the upstream WeatherAPI response omits per-hour air_quality readings.
+     */
+    protected function diurnalDispersionFactor(int $hour, float $windKph, float $uv): float
+    {
+        $commuterFactor = match (true) {
+            $hour >= 5 && $hour <= 8 => 1.18,
+            $hour >= 17 && $hour <= 21 => 1.12,
+            $hour >= 11 && $hour <= 16 => 0.72,
+            default => 0.95,
+        };
+
+        $windFactor = max(0.55, min(1.25, 1.15 - ($windKph * 0.032)));
+        $thermalMixFactor = max(0.78, 1.0 - ($uv * 0.02));
+
+        return round($commuterFactor * $windFactor * $thermalMixFactor, 4);
     }
 
     public function describeAtmosphericRegime(int $hour, float $pm25, float $windKph, float $uv): string

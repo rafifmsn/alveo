@@ -33,6 +33,10 @@ class ExposureEngine
         );
 
         $slotsNeeded = max(1, (int) ceil($durationMinutes / 60));
+        $currentPm25 = (float) $current['pm2_5'];
+        $tzId = (string) ($forecast['location']['tz_id'] ?? 'Asia/Jakarta');
+        $nowLocal = Carbon::now($tzId);
+        $currentLocalHour = $nowLocal->hour;
         $timelineDays = [];
         $todayOptimal = null;
 
@@ -42,11 +46,22 @@ class ExposureEngine
                 fn (array $h) => $h['hour'] >= 6 && $h['hour'] <= 18
             ));
 
+            $candidateHours = $trainingHours;
+            if ($dayIdx === 0 && $currentLocalHour < 18) {
+                $upcoming = array_values(array_filter(
+                    $trainingHours,
+                    fn (array $h) => $h['hour'] >= $currentLocalHour
+                ));
+                if (count($upcoming) >= $slotsNeeded) {
+                    $candidateHours = $upcoming;
+                }
+            }
+
             $bestIndex = 0;
             $bestScore = PHP_FLOAT_MAX;
 
-            for ($i = 0; $i <= max(0, count($trainingHours) - $slotsNeeded); $i++) {
-                $slice = array_slice($trainingHours, $i, $slotsNeeded);
+            for ($i = 0; $i <= max(0, count($candidateHours) - $slotsNeeded); $i++) {
+                $slice = array_slice($candidateHours, $i, $slotsNeeded);
                 $avgPm25 = array_sum(array_column($slice, 'pm2_5')) / count($slice);
                 $avgO3 = array_sum(array_column($slice, 'o3')) / count($slice);
                 $avgUv = array_sum(array_column($slice, 'uv')) / count($slice);
@@ -58,16 +73,34 @@ class ExposureEngine
                 }
             }
 
-            $optimalHour = $trainingHours[$bestIndex] ?? $day['hours'][9];
+            $optimalHour = $candidateHours[$bestIndex] ?? $trainingHours[0] ?? $day['hours'][9];
             $startHour = (int) $optimalHour['hour'];
             $startCarbon = Carbon::parse($day['date'].sprintf(' %02d:00:00', $startHour), 'Asia/Jakarta');
             $endCarbon = $startCarbon->copy()->addMinutes($durationMinutes);
 
             $windowSlots = [];
-            foreach (array_slice($trainingHours, 0, 6) as $idx => $slot) {
+            foreach ($trainingHours as $slot) {
                 $isOptimal = ($slot['hour'] === $startHour);
+                $slotStartCarbon = Carbon::parse($day['date'].sprintf(' %02d:00:00', (int) $slot['hour']), 'Asia/Jakarta');
+                $slotEndCarbon = $slotStartCarbon->copy()->addMinutes($durationMinutes);
+                $slotPm25 = (float) $slot['pm2_5'];
+                $slotDosimetry = $this->dosimetry->calculate(
+                    $slotPm25,
+                    $durationMinutes,
+                    $zone,
+                    (float) $slot['o3'],
+                    (float) $slot['pm10']
+                );
+                $slotImprovementPct = $currentPm25 > 0
+                    ? round(max(0.0, (($currentPm25 - $slotPm25) / $currentPm25) * 100), 1)
+                    : 0.0;
+
                 $windowSlots[] = [
                     'hour' => $slot['hour'],
+                    'day_label' => $day['day_label'],
+                    'start_iso' => $slotStartCarbon->toIso8601String(),
+                    'end_iso' => $slotEndCarbon->toIso8601String(),
+                    'window_display' => $slotStartCarbon->format('h:i').' - '.$slotEndCarbon->format('h:i A'),
                     'time_range' => sprintf(
                         '%02d:00 - %02d:00 %s',
                         $slot['hour'],
@@ -75,6 +108,8 @@ class ExposureEngine
                         ($slot['hour'] + 1) < 12 ? 'AM' : 'PM'
                     ),
                     'pm2_5' => $slot['pm2_5'],
+                    'projected_dose_ug' => $slotDosimetry['inhaled_dose_ug'],
+                    'improvement_pct' => $slotImprovementPct,
                     'wind_kph' => $slot['wind_kph'],
                     'wind_dir' => $slot['wind_dir'],
                     'uv' => $slot['uv'],
@@ -105,7 +140,6 @@ class ExposureEngine
         }
 
         $projectedPm25 = (float) ($todayOptimal['projected_pm2_5'] ?? 22.1);
-        $currentPm25 = (float) $current['pm2_5'];
 
         $improvementPct = $currentPm25 > 0
             ? round(max(0.0, (($currentPm25 - $projectedPm25) / $currentPm25) * 100), 2)
@@ -175,6 +209,14 @@ class ExposureEngine
         $mailtoBody = rawurlencode($telegramCardText."\n\nEvaluated via Alveo: ".config('app.url'));
         $mailtoShareUrl = "mailto:?subject={$mailtoSubject}&body={$mailtoBody}";
 
+        $todayStartCarbon = Carbon::parse($todayOptimal['best_start_iso']);
+        $deltaMinutes = max(0, (int) $nowLocal->diffInMinutes($todayStartCarbon, false));
+        $deltaHours = intdiv($deltaMinutes, 60);
+        $deltaRemMins = $deltaMinutes % 60;
+        $deltaLabel = ($status === 'GO' || $deltaMinutes === 0)
+            ? 'READY NOW'
+            : sprintf('DELTA: +%dH %02dM', $deltaHours, $deltaRemMins);
+
         return [
             'status' => $status,
             'source' => $forecast['source'],
@@ -210,7 +252,7 @@ class ExposureEngine
                 'best_end_time' => $todayOptimal['best_end_iso'],
                 'window_display' => $todayOptimal['window_display'],
                 'short_window' => $todayOptimal['short_window'],
-                'delta_label' => $status === 'DELAY' ? 'DELTA: +3H 00M' : 'READY NOW',
+                'delta_label' => $deltaLabel,
                 'projected_pm2_5' => $projectedPm25,
                 'projected_dose_ug' => $optimalDosimetry['inhaled_dose_ug'],
                 'improvement_pct' => $improvementPct,
