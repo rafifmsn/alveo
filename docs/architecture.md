@@ -49,7 +49,7 @@ graph TD
     end
 
     subgraph Upstream["External Integrations"]
-        WeatherAPI["WeatherAPI.com v1 (/forecast.json?days=3&aqi=yes)"]
+        VisualCrossing["Visual Crossing Timeline API (/timeline/{lat},{lon}/today/next2days)"]
         DeterministicFallback["Deterministic Diurnal Model (Fallback)"]
         CalendarLinks["Client RFC 5545 iCal / Google Calendar Links"]
         TelegramCard["Telegram Deep Share / Markdown Dispatch Card"]
@@ -73,8 +73,8 @@ graph TD
     ExpEngine --> DosimetryCalc
 
     WeatherSvc --> CacheTable
-    CacheTable -->|Cache Miss or Expired| WeatherAPI
-    WeatherAPI -.->|Offline or Key Missing| DeterministicFallback
+    CacheTable -->|Cache Miss or Expired| VisualCrossing
+    VisualCrossing -.->|Offline or Key Missing| DeterministicFallback
 
     ExpEngine --> CalendarLinks
     ExpEngine --> TelegramCard
@@ -92,7 +92,7 @@ graph TD
 This cheatsheet extracts all key files in the application so you can locate domain logic quickly.
 
 ### Controllers (`app/Http/Controllers/`)
-* `WindowFinderController.php`: Serves the primary operational dashboard (`GET /` and `GET /finder`). Handles coordinate queries, preset corridor lookups, `.ics` file downloads (`GET /calendar/ics`), and the REST evaluation endpoint (`POST /api/v1/evaluate-window`).
+* `WindowFinderController.php`: Serves the primary operational dashboard (`GET /` and `GET /finder`). Handles coordinate queries, Indonesian administrative location autocomplete (`GET /api/v1/locations`), preset corridor lookups, custom-slot `.ics` file downloads (`GET /calendar/ics`), and the REST evaluation endpoint (`POST /api/v1/evaluate-window`).
 * `SavedRouteController.php`: Manages verified presets and user-saved running/cycling routes (`GET /routes`, `POST /routes`, `DELETE /routes/{route}`). Automatically enriches corridor cards with cached environmental snapshots.
 * `DosimetryController.php`: Drives the interactive pulmonary deposition calculator (`GET /dosimetry`). Accepts interactive sliders for PM2.5, Ozone, Heart Rate zones, and duration.
 * `ExposureHistoryController.php`: Handles logging and review of past workouts (`GET /history`, `POST /history`, `DELETE /history/{workout}`). Computes 7-day cumulative particulate load and compares against WHO reference ceilings.
@@ -101,8 +101,9 @@ This cheatsheet extracts all key files in the application so you can locate doma
 * `AuthController.php`: Handles registration, sign-in, session destruction, and the holding page for unverified accounts (`GET /verify`).
 
 ### Domain Services (`app/Services/`)
-* `WeatherService.php`: Manages upstream data ingestion from WeatherAPI. Normalizes coordinates to a 0.01 degree grid (~1.1 km), checks the PostgreSQL database cache for entries with a 45-minute TTL, and triggers upstream HTTP queries only on cache misses. Includes a deterministic diurnal model fallback for offline development.
-* `ExposureEngine.php`: Slices 72-hour forecast arrays into contiguous duration windows (30, 60, 90, 120 minutes) across daylight training hours (06:00 to 18:00). Computes penalty scores factoring PM2.5, Ozone, and UV index. Outputs the binary Go vs Postpone verdict, calculates exposure drop percentages, generates human-readable meteorological briefs, and constructs RFC 5545 iCalendar files and Google Calendar URLs.
+* `WeatherService.php`: Manages upstream data ingestion from Visual Crossing's Timeline API. Normalizes coordinates to a 0.01 degree grid (~1.1 km), checks the PostgreSQL database cache for entries with a 60-minute TTL, and triggers upstream HTTP queries only on cache misses. Includes a deterministic diurnal model fallback for offline development.
+* `IndonesiaLocationService.php`: Provides deterministic prefix and keyword search across 7,763 Indonesian provinces, regencies/cities, and districts stored in `database/data/indonesia-locations.json` with coordinates at every administrative level.
+* `ExposureEngine.php`: Evaluates contiguous duration windows (30, 60, 90, 120 minutes) across upcoming daylight training hours (06:00 to 18:00). Computes penalty scores factoring PM2.5, Ozone, and UV index. Outputs the recommended window, calculates exposure drop percentages, generates human-readable meteorological briefs, and constructs RFC 5545 iCalendar files and Google Calendar URLs.
 * `DosimetryCalculator.php`: Implements physiological minute-ventilation calculations across Heart Rate Zones 0 through 5. Converts raw PM2.5 concentrations to US EPA Index (1-6) and UK Defra Index (1-10) using official band tables. Calculates total air volume ventilated and net particulate retention in micrograms.
 
 ### Middleware & Security (`app/Http/Middleware/`)
@@ -125,8 +126,8 @@ Alveo prevents upstream API quota consumption through a coordinate normalization
    Cached forecast objects reside in the `cache` table with expiration timestamps.
 3. **Lazy On-Demand Fetching:** Forecasts are only fetched when an athlete navigates to a corridor.
    There are no background cron daemons or queue workers consuming resources.
-4. **45-Minute TTL:** On a cache miss, Alveo queries WeatherAPI with `days=3&aqi=yes`.
-   The response is saved in the database for 2,700 seconds (45 minutes).
+4. **60-Minute TTL:** On a cache miss, Alveo queries Visual Crossing with `today/next2days`, `include=hours,current`, and `elements=+pm2p5,+pm10,+o3,+no2,+so2,+co,+aqius,+aqieur` (~72 hourly records per call).
+   The response is saved in the database for 3,600 seconds (60 minutes).
    All subsequent requests within that window read directly from PostgreSQL in less than 5 milliseconds.
 
 ## Physiological Dosimetry & Exposure Formula

@@ -168,17 +168,17 @@
         </div>
     </form>
 
-    <!-- Card 4: Database Cache & WeatherAPI Telemetry -->
+    <!-- Card 4: Database Cache & Visual Crossing Telemetry -->
     <div class="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-6 shadow-2xs space-y-4 tabular-nums">
         <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
             <div class="flex items-center gap-2.5">
                 <x-icon name="database" class="w-5 h-5 text-forest-700 dark:text-forest-400 shrink-0" />
                 <h3 class="text-sm font-bold text-slate-900 dark:text-white">
-                    WeatherAPI Quota Conservation & Database Cache
+                    Visual Crossing Quota Conservation & Database Cache
                 </h3>
             </div>
             <span class="px-2.5 py-0.5 rounded-md text-xs font-semibold bg-forest-50 dark:bg-forest-950 text-forest-800 dark:text-forest-300 shrink-0">
-                {{ $weatherApiConfigured ? 'Live API Key Active' : 'Deterministic Engine Active' }}
+                {{ $visualCrossingConfigured ? 'Live API Key Active' : 'Deterministic Engine Active' }}
             </span>
         </div>
 

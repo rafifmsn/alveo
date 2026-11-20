@@ -353,26 +353,8 @@
     <!-- Main 2-Column Operational Layout -->
     <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
 
-        <!-- Left Column: Go / Postpone Verdict Hero Card (5 cols) -->
+        <!-- Left Column: Recommended Window Hero Card (5 cols) -->
         <div class="lg:col-span-5 bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-6 lg:p-7 shadow-2xs space-y-6">
-            <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
-                @if ($isDelay)
-                    <span class="inline-flex items-center gap-2 px-3.5 py-1 rounded-full text-xs font-bold tracking-wide uppercase bg-amber-50 dark:bg-amber-950/80 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800">
-                        <span class="w-2 h-2 rounded-full bg-amber-500"></span>
-                        Postpone Session
-                    </span>
-                @else
-                    <span class="inline-flex items-center gap-2 px-3.5 py-1 rounded-full text-xs font-bold tracking-wide uppercase bg-forest-50 dark:bg-forest-950 text-forest-900 dark:text-forest-300 border border-forest-200 dark:border-forest-800">
-                        <span class="w-2 h-2 rounded-full bg-forest-600"></span>
-                        Go - Clear Window
-                    </span>
-                @endif
-
-                <span class="text-xs font-semibold tracking-wider uppercase text-slate-400 dark:text-slate-500 tabular-nums">
-                    {{ $rec['delta_label'] }}
-                </span>
-            </div>
-
             <div>
                 <p class="text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500"
                    x-text="selectedSlot && !selectedSlot.is_optimal ? `Selected Training Window (${selectedSlot.day_label})` : 'Optimal Rescheduled Window'">

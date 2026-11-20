@@ -2,17 +2,14 @@
 
 This document records the architectural tradeoffs and technical rationales behind key design decisions in Alveo.
 
-## Selection of WeatherAPI Over Open-Meteo
+## Selection of Visual Crossing Over WeatherAPI and Open-Meteo
 
-The project initially evaluated Open-Meteo for atmospheric and air quality forecasts but transitioned to WeatherAPI for production viability.
+The project initially evaluated Open-Meteo and WeatherAPI before transitioning to Visual Crossing for live atmospheric and air quality forecasts.
 
-* **Ambiguous IP-Based Rate Limiting:** Open-Meteo's free tier does not issue API keys and enforces unauthenticated IP-based throttling.
-  On shared hosting, cloud VPS providers, or container clusters sharing an outbound gateway IP, unexpected 429 rate limit errors can occur when other tenants consume the pool.
-* **Commercial Viability:** Open-Meteo restricts its free tier to non-commercial usage.
-  WeatherAPI explicitly permits commercial and production applications within its 100,000 monthly free tier quota.
-* **Predictable Keyed Quota:** WeatherAPI uses authenticated API keys.
-  This allows Alveo to monitor usage accurately and avoid noisy neighbor issues.
-* **Complete Pollutant Suite in One Query:** WeatherAPI returns current atmospheric conditions, 3 days of hourly forecasts, and full air quality metrics (`pm2_5`, `pm10`, `o3`, `no2`, `so2`, `co`, `us-epa-index`, and `gb-defra-index`) in a single HTTP request.
+* **Ambiguous IP-Based Rate Limiting (Open-Meteo):** Open-Meteo's free tier does not issue API keys and enforces unauthenticated IP-based throttling, alongside non-commercial licensing restrictions.
+* **Commercial Viability:** Visual Crossing explicitly permits commercial usage on all plans, including the Free tier (30,000 records/month, 1,000 records/day).
+* **Real Hourly Air Quality (vs. WeatherAPI Free Tier):** WeatherAPI's free tier omits per-hour `air_quality` forecasts (`hour[].air_quality`), whereas Visual Crossing's Timeline API returns real hourly CAMS pollutant layers (`pm2p5`, `pm10`, `o3`, `no2`, `so2`, `co`, `aqius`, `aqieur`) alongside weather metrics for 3 days (`today/next2days`, ~72 hourly records) in a single HTTP request.
+* **Predictable Keyed Quota:** Visual Crossing uses authenticated API keys, allowing Alveo to conserve its 1,000 records/day budget via spatial caching and sequential requests (`Maximum API Concurrency: 1`).
 
 ## On-Demand Database Caching Over Redis and Background Daemons
 
@@ -20,12 +17,12 @@ Alveo uses PostgreSQL database caching (`CACHE_STORE=database`) with coordinate 
 
 * **Zero Infrastructure Bloat:** PostgreSQL is already required for persistent relational models (users, routes, logs, and broadcasts).
   Adding Redis introduces another container daemon, additional memory footprint, and separate connection configurations for an application that easily handles its read volume within PostgreSQL.
-* **Elimination of Unnecessary Server-Side Cron Jobs:** A background cron daemon polling forecasts for all routes every hour would burn through API calls regardless of whether athletes are active.
-  On-demand lazy caching queries WeatherAPI only when a user requests an uncached corridor.
+* **Elimination of Unnecessary Server-Side Cron Jobs:** A background cron daemon polling forecasts for all routes every hour would burn through API records regardless of whether athletes are active.
+  On-demand lazy caching queries Visual Crossing only when a user requests an uncached corridor.
 * **Coordinate Grid Normalization:** Geographic coordinates are rounded to 0.01 degrees (approximately 1.1 km).
   Athletes inspecting nearby locations (such as adjacent gates at the GBK sports complex) hit the exact same cached payload.
-* **45-Minute Time-To-Live:** Atmospheric dispersion changes on hourly timescales.
-  A 45-minute database cache TTL guarantees fresh micro-meteorological data while preventing redundant API consumption.
+* **60-Minute Time-To-Live:** Atmospheric dispersion changes on hourly timescales.
+  A 60-minute database cache TTL guarantees fresh micro-meteorological data while conserving Visual Crossing's 1,000 records/day Free quota.
 
 ## Manual Account Verification Gate and Seeded Data Architecture
 
@@ -33,7 +30,7 @@ The application requires administrator account verification prior to dashboard a
 
 * **Zero SMTP DevOps Debt:** Setting up production email delivery requires domain reputation warmup, SPF/DKIM/DMARC records, and third-party transactional mail services.
   Alveo eliminates this overhead by omitting mandatory email verification tokens and handling activation at the database layer.
-* **API Quota Protection:** Because WeatherAPI provides 100,000 requests per month on the free tier, allowing automated public registrations could expose the application to malicious scraping or quota exhaustion.
+* **API Quota Protection:** Because Visual Crossing provides 1,000 records per day on the free tier, allowing automated public registrations could expose the application to malicious scraping or quota exhaustion.
   New registrations default to `email_verified_at = null` and are held at the `/verify` screen.
 * **Direct Database Administration (Adminer):** Rather than maintaining custom CLI commands that require server terminal access and routine maintenance, administrators verify accounts directly using Adminer (`127.0.0.1:8080`) by setting `email_verified_at = now()`.
 * **Seeded Data Architecture:**
