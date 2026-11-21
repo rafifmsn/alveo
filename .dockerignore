@@ -8,3 +8,5 @@ public/build
 public/hot
 storage/logs/*
 bootstrap/cache/*
+public/images/screens
+docs
