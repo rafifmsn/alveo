@@ -13,36 +13,38 @@ It helps runners, cyclists, and community fitness groups pinpoint the cleanest t
 Instead of passive historical pollution charts, Alveo translates atmospheric particulate concentrations into active pulmonary exposure calculations.
 It computes minute-ventilation across athletic heart rate zones, evaluates contiguous hourly forecast blocks, delivers binary Go or Postpone recommendations, and offloads reminders via native calendar events and Telegram dispatch cards.
 
-## Quickstart (Docker)
+## Quickstart (Local Docker)
 
 1. Clone the repository and enter the directory:
    ```bash
-   git clone https://github.com/your-username/alveo.git
+   git clone https://github.com/rafifmsn/alveo.git
    cd alveo
    ```
 2. Copy the environment file and set your Visual Crossing API key:
    ```bash
    cp .env.example .env
    ```
-   Add your API key to `VISUALCROSSING_KEY` in `.env` (optional; the built-in deterministic model serves realistic data if left blank).
+   Add your API key to `VISUALCROSSING_KEY` in `.env` (optional; the built-in deterministic model serves fallback data if left blank).
+   Customize `SEED_ADMIN_*` and `SEED_USER_*` in `.env` if you want non-default seeded credentials.
 3. Start the containers using Docker Compose:
    ```bash
    docker compose up -d --build
    ```
+   On startup, `docker/entrypoint.sh` waits for `db`, runs migrations, and executes `DatabaseSeeder` idempotently.
 4. Access the web services:
    - Main Application: [http://localhost:8085](http://localhost:8085)
    - Database UI (Adminer): [http://localhost:8080](http://localhost:8080) (System: PostgreSQL, Server: `db`, Username: `alveo`, Password: `alveo_secret`, Database: `alveo`)
-5. Sign in using the seeded accounts (configured via `SEED_ADMIN_*` and `SEED_USER_*` in `.env`):
+5. Sign in using the seeded accounts (derived from `SEED_ADMIN_*` and `SEED_USER_*` in `.env`):
    - Administrator: `admin@alveo.id` / `password` (`/admin`)
    - Verified Athlete: `rafif@alveo.id` / `password` (`/finder`)
-   - Newly registered accounts are verified by default so reviewers can immediately access `/finder`.
+   - Newly registered accounts are verified by default so evaluators can immediately access `/finder`.
 
 ## Useful Docker CLI Commands
 
 When running the application stack via Docker Compose, you can execute maintenance and development tasks against the `app` container using the commands below:
 
 ```bash
-# Seed or re-seed initial data (preset corridors, sample workouts, and demo broadcasts)
+# Seed or re-seed initial data (admin, athlete, 3 presets, logs, and 1 broadcast)
 docker compose exec app php artisan db:seed
 
 # Clear application forecast cache (stored in the PostgreSQL cache table)
@@ -73,37 +75,49 @@ docker compose exec app php artisan tinker
 docker compose exec app bash
 ```
 
-## Quickstart (Local Development Without Docker)
+## Production Deployment (Render + GHCR + External PostgreSQL)
 
-To run the application directly on your host machine without Docker:
+Alveo publishes a single-container image to GitHub Container Registry (`ghcr.io/rafifmsn/alveo:latest`) whenever tests pass on `main`.
 
-1. Ensure prerequisites are installed: PHP 8.2 or higher (with `pdo_sqlite` or `pdo_pgsql`, `mbstring`, `intl`), Composer, and Node.js 18+.
-2. Install PHP and frontend dependencies:
-   ```bash
-   composer install
-   npm install
-   npm run build
-   ```
-3. Configure your local `.env`:
-   ```bash
-   cp .env.example .env
-   php artisan key:generate
-   ```
-   For rapid local development, switch the database driver from PostgreSQL to SQLite:
+1. Ensure the `alveo` package visibility on GitHub Packages is set to **Public** so Render can pull it without registry credentials.
+2. In Render, create a **Web Service** configured with **Deploy an existing image from a registry** pointing to `ghcr.io/rafifmsn/alveo:latest`.
+3. Configure these required Environment Variables in Render:
    ```env
-   DB_CONNECTION=sqlite
-   DB_DATABASE=/absolute/path/to/database/database.sqlite
+   APP_NAME=Alveo
+   APP_ENV=production
+   APP_KEY=base64:QWx2ZW9DbGVhbkFpcldpbmRvd0VuZ2luZTIwMjZLRVk=
+   APP_DEBUG=false
+   APP_TIMEZONE=Asia/Jakarta
+   APP_URL=https://your-service-name.onrender.com
+
+   LOG_CHANNEL=stderr
+   LOG_LEVEL=error
+
+   DB_CONNECTION=pgsql
+   DB_URL=postgresql://user:password@your-postgres-host/neondb?sslmode=require&channel_binding=require
+   DB_SSLMODE=require
+
+   SESSION_DRIVER=database
+   CACHE_STORE=database
+
+   VISUALCROSSING_KEY=your_visual_crossing_key
+   VISUALCROSSING_CACHE_TTL=3600
+
+   SEED_ADMIN_NAME="Alveo Admin"
+   SEED_ADMIN_EMAIL=admin@alveo.id
+   SEED_ADMIN_PASSWORD=password
+   SEED_USER_NAME="Rafif Muchsin"
+   SEED_USER_EMAIL=rafif@alveo.id
+   SEED_USER_PASSWORD=password
    ```
-   Create the SQLite file with `touch database/database.sqlite`.
-4. Run migrations and database seeders:
-   ```bash
-   php artisan migrate --seed
-   ```
-5. Start the local server:
-   ```bash
-   php artisan serve
-   ```
-   Visit [http://localhost:8000](http://localhost:8000).
+4. Database migration and seeding work in two ways:
+   - **Automatic on first boot**: `docker/entrypoint.sh` skips the local `pg_isready` host check whenever `DB_URL` is set, runs `php artisan migrate --force`, and runs `php artisan db:seed --force` automatically against your remote PostgreSQL database.
+   - **Manual seed from local container (optional)**: If you want to initialize a fresh remote PostgreSQL database from your machine before deploying, start the local container (`docker compose up -d`) and run:
+     ```bash
+     docker compose exec -e DB_URL="your-postgres-url" app php artisan migrate --force
+     docker compose exec -e DB_URL="your-postgres-url" app php artisan db:seed --force
+     ```
+   - **In-app reset**: Once deployed, administrators can wipe and re-seed demo data anytime from `/admin/system` without terminal access.
 
 ## High-Level Architecture Overview
 
@@ -130,6 +144,6 @@ Atmospheric forecasts are cached in PostgreSQL for 60 minutes per coordinate gri
 Explore the detailed architecture and engineering rationale in the documentation folder:
 
 - [Architecture Guide](docs/architecture.md): Complete technical breakdown, component directory cheatsheet, dosimetry formulas, and database schemas.
-- [Architecture Decision Records](docs/decisions.md): Engineering rationales for API provider selection, caching strategy, and the verification gate.
+- [Architecture Decision Records](docs/decisions.md): Engineering rationales for API provider selection, caching strategy, and role-separated account lifecycle.
 - [Visual Crossing Documentation Map](docs/visualcrossing/INDEX.md): Line-by-line index of Timeline API parameters, response elements, and air quality schemas.
 - [Visual Crossing Pricing & Limits](docs/visualcrossing/pricing.md): Plan comparison, 1,000 records/day quota details, and concurrency constraints.
