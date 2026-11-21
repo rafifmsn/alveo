@@ -20,9 +20,11 @@
             <input id="email"
                    type="email"
                    name="email"
-                   value="{{ old('email', 'rafif@alveo.id') }}"
+                   value="{{ old('email') }}"
                    required
                    autofocus
+                   autocomplete="email"
+                   placeholder="athlete@alveo.id"
                    class="input input-bordered w-full bg-slate-50/70 border-slate-300 focus:border-forest-800 focus:outline-hidden text-sm rounded-xl" />
         </div>
 
@@ -33,8 +35,8 @@
             <input id="password"
                    type="password"
                    name="password"
-                   value="password"
                    required
+                   autocomplete="current-password"
                    class="input input-bordered w-full bg-slate-50/70 border-slate-300 focus:border-forest-800 focus:outline-hidden text-sm rounded-xl" />
         </div>
 

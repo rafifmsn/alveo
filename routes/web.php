@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\AdminController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\ClubBroadcastController;
 use App\Http\Controllers\DosimetryController;
@@ -23,7 +24,20 @@ Route::middleware('auth')->group(function () {
     Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
 });
 
-Route::middleware(['auth', 'verified.account'])->group(function () {
+Route::prefix('admin')
+    ->name('admin.')
+    ->middleware(['auth', 'admin'])
+    ->group(function () {
+        Route::get('/', [AdminController::class, 'overview'])->name('overview');
+        Route::get('/users', [AdminController::class, 'users'])->name('users');
+        Route::patch('/users/{user}/role', [AdminController::class, 'updateRole'])->name('users.role');
+        Route::delete('/users/{user}', [AdminController::class, 'destroyUser'])->name('users.destroy');
+        Route::get('/system', [AdminController::class, 'system'])->name('system');
+        Route::post('/system/clear-cache', [AdminController::class, 'clearCache'])->name('system.clear-cache');
+        Route::post('/system/reset', [AdminController::class, 'resetDemo'])->name('system.reset');
+    });
+
+Route::middleware(['auth', 'verified.account', 'athlete.page'])->group(function () {
     Route::get('/finder', [WindowFinderController::class, 'index'])->name('finder');
     Route::get('/calendar/ics', [WindowFinderController::class, 'downloadIcs'])->name('calendar.ics');
 

@@ -19,11 +19,23 @@ class AlveoApplicationTest extends TestCase
         $response->assertOk()
             ->assertSee('Train Smarter')
             ->assertSee('Connects with Your Tools')
-            ->assertSee('/images/landing/hero-dashboard.svg')
+            ->assertSee('/images/landing/window-finder.png')
+            ->assertSee('/images/landing/exposure-planning.png')
+            ->assertSee('/images/landing/dosimetry-guidance.png')
+            ->assertSee('/images/landing/tool_sync.png')
             ->assertSee('/images/landing/tools-bg.svg');
     }
 
-    public function test_newly_registered_user_is_unverified_and_redirected_to_verify_screen(): void
+    public function test_login_screen_does_not_prefill_credentials(): void
+    {
+        $response = $this->get('/login');
+
+        $response->assertOk()
+            ->assertDontSee('value="rafif@alveo.id"', false)
+            ->assertDontSee('value="password"', false);
+    }
+
+    public function test_newly_registered_user_is_verified_by_default_and_redirected_to_finder(): void
     {
         $response = $this->post('/register', [
             'name' => 'Budi Santoso',
@@ -32,20 +44,51 @@ class AlveoApplicationTest extends TestCase
             'password_confirmation' => 'password123',
         ]);
 
-        $response->assertRedirect('/verify');
+        $response->assertRedirect('/finder');
 
         $user = User::where('email', 'budi@alveo.id')->firstOrFail();
-        $this->assertNull($user->email_verified_at);
+        $this->assertNotNull($user->email_verified_at);
+        $this->assertSame(User::ROLE_USER, $user->role);
 
-        // Attempting to visit dashboard redirects to /verify
+        $this->actingAs($user)->get('/finder')->assertOk();
+    }
+
+    public function test_unverified_user_is_gated_at_verify_screen(): void
+    {
+        $user = User::factory()->unverified()->create();
+
         $this->actingAs($user)->get('/finder')->assertRedirect('/verify');
 
-        // Visiting /verify shows Verification Required modal & mailto link
         $verifyPage = $this->actingAs($user)->get('/verify');
-        $verifyPage->assertOk();
-        $verifyPage->assertSee('Verification Required');
-        $verifyPage->assertSee('24-48 hours');
-        $verifyPage->assertSee('mailto:');
+        $verifyPage->assertOk()
+            ->assertSee('Verification Required')
+            ->assertSee('24-48 hours')
+            ->assertSee('mailto:');
+    }
+
+    public function test_seeder_derives_accounts_from_config_with_three_presets_and_single_follow_broadcast(): void
+    {
+        config([
+            'app.seed.admin.email' => 'custom-admin@alveo.id',
+            'app.seed.admin.password' => 'adminsecret',
+            'app.seed.user.email' => 'custom-athlete@alveo.id',
+            'app.seed.user.password' => 'usersecret',
+        ]);
+
+        $this->seed(DatabaseSeeder::class);
+
+        $admin = User::where('email', 'custom-admin@alveo.id')->firstOrFail();
+        $member = User::where('email', 'custom-athlete@alveo.id')->firstOrFail();
+
+        $this->assertTrue($admin->isAdmin());
+        $this->assertFalse($member->isAdmin());
+        $this->assertSame(3, SavedRoute::where('is_preset', true)->count());
+        $this->assertDatabaseCount('club_broadcasts', 1);
+        $this->assertDatabaseCount('club_broadcast_follows', 1);
+        $this->assertDatabaseHas('club_broadcasts', [
+            'user_id' => $member->id,
+            'followers_count' => 1,
+        ]);
     }
 
     public function test_verified_user_can_access_all_six_blade_screens(): void
@@ -60,7 +103,7 @@ class AlveoApplicationTest extends TestCase
             ->assertOk()
             ->assertSee('Optimal Rescheduled Window')
             ->assertSee('Microsoft 365')
-            ->assertSee('Outlook.com')
+            ->assertSee('Outlook')
             ->assertSee('Yahoo Cal')
             ->assertSee('Window Timeline');
 
@@ -224,5 +267,107 @@ class AlveoApplicationTest extends TestCase
         $response->assertOk()
             ->assertSee('DTSTART:20261120T090000Z')
             ->assertSee('DTEND:20261120T100000Z');
+    }
+
+    public function test_role_separation_redirects_and_admin_user_management(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $admin = User::where('email', 'admin@alveo.id')->firstOrFail();
+        $athlete = User::where('email', 'rafif@alveo.id')->firstOrFail();
+        $extra = User::factory()->create(['name' => 'Test Runner', 'email' => 'runner@alveo.id']);
+
+        // Athlete is blocked from admin pages and admin mutations
+        $this->actingAs($athlete)->get('/admin')->assertRedirect('/finder');
+        $this->actingAs($athlete)->get('/admin/users')->assertRedirect('/finder');
+        $this->actingAs($athlete)->get('/admin/system')->assertRedirect('/finder');
+        $this->actingAs($athlete)->patch("/admin/users/{$extra->id}/role", ['role' => 'admin'])->assertForbidden();
+        $this->actingAs($athlete)->delete("/admin/users/{$extra->id}")->assertForbidden();
+        $this->actingAs($athlete)->post('/admin/system/reset', ['confirmation' => 'RESET'])->assertForbidden();
+
+        // Admin is auto-redirected away from athlete pages to /admin
+        $this->actingAs($admin)->get('/finder')->assertRedirect('/admin');
+        $this->actingAs($admin)->get('/routes')->assertRedirect('/admin');
+        $this->actingAs($admin)->get('/settings')->assertRedirect('/admin');
+
+        $expectedApiBadge = config('services.visualcrossing.key', '') !== '' ? 'Live API Key Active' : 'Deterministic Engine Active';
+
+        // Admin views overview and user management without athlete nav
+        $this->actingAs($admin)->get('/admin')
+            ->assertOk()
+            ->assertSee('System Aggregate Telemetry')
+            ->assertSee('User Management')
+            ->assertSee($expectedApiBadge)
+            ->assertSee('handleWorkspaceClick')
+            ->assertDontSee('Window Finder');
+
+        $this->actingAs($admin)->get('/admin/users')
+            ->assertOk()
+            ->assertSee('runner@alveo.id');
+
+        // Promote and demote extra user
+        $this->actingAs($admin)->patch("/admin/users/{$extra->id}/role", ['role' => 'admin'])
+            ->assertRedirect('/admin/users');
+        $this->assertTrue($extra->fresh()->isAdmin());
+
+        $this->actingAs($admin)->patch("/admin/users/{$extra->id}/role", ['role' => 'user'])
+            ->assertRedirect('/admin/users');
+        $this->assertFalse($extra->fresh()->isAdmin());
+
+        // Self-lockout guard prevents self-demotion and self-deletion
+        $this->actingAs($admin)->patch("/admin/users/{$admin->id}/role", ['role' => 'user'])
+            ->assertSessionHasErrors('role');
+        $this->assertTrue($admin->fresh()->isAdmin());
+
+        $this->actingAs($admin)->delete("/admin/users/{$admin->id}")
+            ->assertSessionHasErrors('user');
+        $this->assertDatabaseHas('users', ['id' => $admin->id]);
+
+        // Admin can delete another user
+        $this->actingAs($admin)->delete("/admin/users/{$extra->id}")
+            ->assertRedirect('/admin/users');
+        $this->assertDatabaseMissing('users', ['id' => $extra->id]);
+    }
+
+    public function test_admin_can_clear_cache_and_reset_system_data(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $admin = User::where('email', 'admin@alveo.id')->firstOrFail();
+        $extra = User::factory()->create(['email' => 'temporary@alveo.id']);
+        SavedRoute::create([
+            'user_id' => $extra->id,
+            'name' => 'Temporary Route',
+            'region' => 'Jakarta',
+            'latitude' => -6.2,
+            'longitude' => 106.8,
+            'distance_km' => 5.0,
+            'preferred_activity' => 'running',
+            'surface_type' => 'Road',
+            'is_preset' => false,
+        ]);
+
+        $expectedApiBadge = config('services.visualcrossing.key', '') !== '' ? 'Live API Key Active' : 'Deterministic Engine Active';
+
+        $this->actingAs($admin)->get('/admin/system')
+            ->assertOk()
+            ->assertSee('Reset System Data')
+            ->assertSee($expectedApiBadge);
+
+        $this->actingAs($admin)->post('/admin/system/clear-cache')->assertRedirect('/admin/system');
+
+        $this->actingAs($admin)->post('/admin/system/reset', ['confirmation' => 'WRONG'])
+            ->assertSessionHasErrors('confirmation');
+        $this->assertDatabaseHas('users', ['email' => 'temporary@alveo.id']);
+
+        $this->actingAs($admin)->post('/admin/system/reset', ['confirmation' => 'RESET'])
+            ->assertRedirect('/admin');
+
+        $this->assertDatabaseMissing('users', ['email' => 'temporary@alveo.id']);
+        $this->assertDatabaseMissing('saved_routes', ['name' => 'Temporary Route']);
+        $this->assertDatabaseHas('users', ['id' => $admin->id, 'role' => 'admin']);
+        $this->assertSame(3, SavedRoute::where('is_preset', true)->count());
+        $this->assertDatabaseCount('club_broadcasts', 1);
+        $this->assertDatabaseCount('club_broadcast_follows', 1);
     }
 }

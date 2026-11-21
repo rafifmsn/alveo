@@ -1,7 +1,7 @@
 <x-guest-layout title="Register">
     <div class="mb-6">
         <h1 class="text-xl font-bold text-slate-900">Create Athlete Account</h1>
-        <p class="mt-1 text-sm text-slate-500">New accounts require manual administrator verification before dashboard access.</p>
+        <p class="mt-1 text-sm text-slate-500">Sign up to evaluate clean-air training windows and track inhaled exposure.</p>
     </div>
 
     @if ($errors->any())

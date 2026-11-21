@@ -12,10 +12,15 @@ class User extends Authenticatable
 {
     use HasFactory, Notifiable;
 
+    public const ROLE_USER = 'user';
+
+    public const ROLE_ADMIN = 'admin';
+
     protected $fillable = [
         'name',
         'email',
         'email_verified_at',
+        'role',
         'password',
         'sensitivity_profile',
         'unit_system',
@@ -42,6 +47,11 @@ class User extends Authenticatable
     public function isVerified(): bool
     {
         return $this->email_verified_at !== null;
+    }
+
+    public function isAdmin(): bool
+    {
+        return $this->role === self::ROLE_ADMIN;
     }
 
     public function pm25Threshold(): float

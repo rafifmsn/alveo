@@ -7,18 +7,24 @@ use App\Models\SavedRoute;
 use App\Models\User;
 use App\Models\WorkoutLog;
 use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 
 class DatabaseSeeder extends Seeder
 {
     public function run(): void
     {
-        $rafif = User::firstOrCreate(
-            ['email' => 'rafif@alveo.id'],
+        $adminEmail = strtolower((string) config('app.seed.admin.email', 'admin@alveo.id'));
+        $adminName = (string) config('app.seed.admin.name', 'Alveo Admin');
+        $adminPassword = (string) config('app.seed.admin.password', 'password');
+
+        User::firstOrCreate(
+            ['email' => $adminEmail],
             [
-                'name' => 'Rafif Muchsin',
+                'name' => $adminName,
                 'email_verified_at' => now(),
-                'password' => Hash::make('password'),
+                'role' => User::ROLE_ADMIN,
+                'password' => Hash::make($adminPassword),
                 'sensitivity_profile' => 'standard',
                 'unit_system' => 'metric',
                 'default_activity' => 'running',
@@ -27,15 +33,20 @@ class DatabaseSeeder extends Seeder
             ]
         );
 
-        User::firstOrCreate(
-            ['email' => 'pending@alveo.id'],
+        $userEmail = strtolower((string) config('app.seed.user.email', 'rafif@alveo.id'));
+        $userName = (string) config('app.seed.user.name', 'Rafif Muchsin');
+        $userPassword = (string) config('app.seed.user.password', 'password');
+
+        $member = User::firstOrCreate(
+            ['email' => $userEmail],
             [
-                'name' => 'Arkan Pratama',
-                'email_verified_at' => null,
-                'password' => Hash::make('password'),
+                'name' => $userName,
+                'email_verified_at' => now(),
+                'role' => User::ROLE_USER,
+                'password' => Hash::make($userPassword),
                 'sensitivity_profile' => 'standard',
                 'unit_system' => 'metric',
-                'default_activity' => 'cycling',
+                'default_activity' => 'running',
                 'default_duration' => 60,
                 'dark_mode' => false,
             ]
@@ -69,33 +80,6 @@ class DatabaseSeeder extends Seeder
                 'preferred_activity' => 'cycling',
                 'surface_type' => 'Coastal Sea-Breeze Causeway',
             ],
-            [
-                'name' => 'BSD Green Boulevard, Tangerang',
-                'region' => 'BSD City, South Tangerang',
-                'latitude' => -6.3016,
-                'longitude' => 106.6534,
-                'distance_km' => 10.0,
-                'preferred_activity' => 'running',
-                'surface_type' => 'Suburban Parkway',
-            ],
-            [
-                'name' => 'UI Depok Forest Trail, Depok',
-                'region' => 'Kampus UI, Depok',
-                'latitude' => -6.3628,
-                'longitude' => 106.8271,
-                'distance_km' => 6.8,
-                'preferred_activity' => 'running',
-                'surface_type' => 'Dense Canopy Loop',
-            ],
-            [
-                'name' => 'Kelapa Gading Endurance Loop, Jakarta',
-                'region' => 'Kelapa Gading, North Jakarta',
-                'latitude' => -6.1574,
-                'longitude' => 106.9080,
-                'distance_km' => 8.0,
-                'preferred_activity' => 'walking',
-                'surface_type' => 'Boulevard Circuit',
-            ],
         ];
 
         $gbkRoute = null;
@@ -109,9 +93,9 @@ class DatabaseSeeder extends Seeder
             }
         }
 
-        if (WorkoutLog::where('user_id', $rafif->id)->count() === 0) {
+        if (WorkoutLog::where('user_id', $member->id)->count() === 0) {
             WorkoutLog::create([
-                'user_id' => $rafif->id,
+                'user_id' => $member->id,
                 'saved_route_id' => $gbkRoute?->id,
                 'location_name' => 'GBK Outer Perimeter, Jakarta',
                 'activity_type' => 'running',
@@ -128,7 +112,7 @@ class DatabaseSeeder extends Seeder
             ]);
 
             WorkoutLog::create([
-                'user_id' => $rafif->id,
+                'user_id' => $member->id,
                 'saved_route_id' => $gbkRoute?->id,
                 'location_name' => 'PIK Coastal Loop, North Jakarta',
                 'activity_type' => 'cycling',
@@ -145,7 +129,7 @@ class DatabaseSeeder extends Seeder
             ]);
 
             WorkoutLog::create([
-                'user_id' => $rafif->id,
+                'user_id' => $member->id,
                 'saved_route_id' => $gbkRoute?->id,
                 'location_name' => 'Sudirman Corridor, Jakarta',
                 'activity_type' => 'running',
@@ -163,10 +147,10 @@ class DatabaseSeeder extends Seeder
         }
 
         if (ClubBroadcast::count() === 0) {
-            ClubBroadcast::create([
-                'user_id' => $rafif->id,
+            $broadcast = ClubBroadcast::create([
+                'user_id' => $member->id,
                 'club_name' => 'Senayan Dawn Runners',
-                'captain_name' => 'Rafif Muchsin',
+                'captain_name' => $member->name,
                 'corridor_name' => 'GBK Outer Perimeter, Jakarta',
                 'latitude' => -6.2185,
                 'longitude' => 106.8025,
@@ -180,47 +164,14 @@ class DatabaseSeeder extends Seeder
                 'improvement_pct' => 62.2,
                 'wind_summary' => '12.8 km/h NNW Coastal Flush',
                 'captain_note' => 'Morning inversion is holding 58 ug/m3 at 06:00 AM. Pushing group tempo run to 09:00 AM Gate 7 assembly to cut inhaled PM2.5 by 62%.',
-                'followers_count' => 42,
+                'followers_count' => 1,
             ]);
 
-            ClubBroadcast::create([
-                'user_id' => $rafif->id,
-                'club_name' => 'Jakarta Coastal Peloton',
-                'captain_name' => 'Dimas Wardhana',
-                'corridor_name' => 'PIK Coastal Loop, North Jakarta',
-                'latitude' => -6.1085,
-                'longitude' => 106.7425,
-                'activity_type' => 'cycling',
-                'duration_minutes' => 90,
-                'verdict' => 'GO',
-                'window_start' => '08:00',
-                'window_end' => '09:30 AM',
-                'session_date' => now()->toDateString(),
-                'projected_pm2_5' => 17.5,
-                'improvement_pct' => 54.0,
-                'wind_summary' => '14.5 km/h N Onshore Breeze',
-                'captain_note' => 'Sea breeze active across the PIK 2 causeway. Rolling out at 08:00 AM sharp for 90-minute endurance paceline.',
-                'followers_count' => 67,
-            ]);
-
-            ClubBroadcast::create([
-                'user_id' => $rafif->id,
-                'club_name' => 'UI Canopy Trail Collective',
-                'captain_name' => 'Nadia Kusuma',
-                'corridor_name' => 'UI Depok Forest Trail, Depok',
-                'latitude' => -6.3628,
-                'longitude' => 106.8271,
-                'activity_type' => 'running',
-                'duration_minutes' => 60,
-                'verdict' => 'GO',
-                'window_start' => '09:00',
-                'window_end' => '10:00 AM',
-                'session_date' => now()->addDay()->toDateString(),
-                'projected_pm2_5' => 19.2,
-                'improvement_pct' => 58.5,
-                'wind_summary' => '10.6 km/h NW Canopy Dispersion',
-                'captain_note' => 'Canopy filtration and mid-morning thermal mixing provide optimal sub-20 ug/m3 conditions for tomorrow morning base mileage.',
-                'followers_count' => 29,
+            DB::table('club_broadcast_follows')->insert([
+                'user_id' => $member->id,
+                'club_broadcast_id' => $broadcast->id,
+                'created_at' => now(),
+                'updated_at' => now(),
             ]);
         }
     }

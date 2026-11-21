@@ -32,9 +32,10 @@ It computes minute-ventilation across athletic heart rate zones, evaluates conti
 4. Access the web services:
    - Main Application: [http://localhost:8085](http://localhost:8085)
    - Database UI (Adminer): [http://localhost:8080](http://localhost:8080) (System: PostgreSQL, Server: `db`, Username: `alveo`, Password: `alveo_secret`, Database: `alveo`)
-5. Sign in using the seeded test accounts:
-   - Verified Athlete: `rafif@alveo.id` / `password`
-   - Pending Approval Account: `pending@alveo.id` / `password` (tests the `/verify` gate)
+5. Sign in using the seeded accounts (configured via `SEED_ADMIN_*` and `SEED_USER_*` in `.env`):
+   - Administrator: `admin@alveo.id` / `password` (`/admin`)
+   - Verified Athlete: `rafif@alveo.id` / `password` (`/finder`)
+   - Newly registered accounts are verified by default so reviewers can immediately access `/finder`.
 
 ## Useful Docker CLI Commands
 
@@ -108,11 +109,11 @@ To run the application directly on your host machine without Docker:
 
 ```mermaid
 flowchart LR
-    Athlete([Athlete / Captain]) -->|HTTPS / Browser| UI[Blade Screens + DaisyUI]
+    Athlete([Athlete / Admin]) -->|HTTPS / Browser| UI[Blade Screens + DaisyUI]
     UI --> Router[Laravel Web & API Routes]
-    Router --> Auth{Verified Check}
-    Auth -->|Unverified| VerifyPage["/verify Gate"]
-    Auth -->|Verified| Controllers[Domain Controllers]
+    Router --> RoleGate{Role & Access Check}
+    RoleGate -->|Admin| AdminPanel["/admin Control Plane"]
+    RoleGate -->|Verified Athlete| Controllers[Domain Controllers]
     Controllers --> Engine[ExposureEngine & Dosimetry]
     Engine --> CacheRepo[(PostgreSQL Cache)]
     CacheRepo -->|Cache Hit < 60m| Response[Calculated Verdict & Action Links]
@@ -121,7 +122,7 @@ flowchart LR
 ```
 
 Alveo operates as a stateless computational pipeline with on-demand database caching.
-Requests pass through Laravel session authentication and the verification gate before reaching domain controllers.
+Requests pass through Laravel session authentication and role-based route protection (`admin` vs. `athlete.page` and `verified.account`) before reaching domain controllers.
 Atmospheric forecasts are cached in PostgreSQL for 60 minutes per coordinate grid, eliminating redundant upstream calls and keeping the system within the Visual Crossing Free Tier (1,000 records/day).
 
 ## Documentation Index

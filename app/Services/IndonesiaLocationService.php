@@ -61,6 +61,11 @@ class IndonesiaLocationService
         return $results[0] ?? null;
     }
 
+    public function count(): int
+    {
+        return count($this->records());
+    }
+
     /**
      * @return array<int, array<string, mixed>>
      */

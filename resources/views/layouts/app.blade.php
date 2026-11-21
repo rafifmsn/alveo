@@ -1,31 +1,75 @@
 @props(['title' => 'Dashboard'])
 @php
     $currentUser = auth()->user();
+    $isAdmin = $currentUser?->isAdmin() ?? false;
     $isDark = $currentUser?->dark_mode ?? false;
     $initials = collect(explode(' ', $currentUser?->name ?? 'Athlete'))
         ->map(fn ($part) => strtoupper(substr($part, 0, 1)))
         ->take(2)
         ->implode('');
 
-    $navItems = [
-        ['label' => 'Window Finder', 'route' => 'finder', 'icon' => 'compass', 'active' => request()->routeIs('finder*')],
-        ['label' => 'Saved Routes', 'route' => 'routes.index', 'icon' => 'route', 'active' => request()->routeIs('routes.*')],
-        ['label' => 'Inhaled Dosimetry', 'route' => 'dosimetry.index', 'icon' => 'activity', 'active' => request()->routeIs('dosimetry.*')],
-        ['label' => 'Exposure History', 'route' => 'history.index', 'icon' => 'history', 'active' => request()->routeIs('history.*')],
-        ['label' => 'Club Broadcasts', 'route' => 'broadcasts.index', 'icon' => 'megaphone', 'active' => request()->routeIs('broadcasts.*')],
-        ['label' => 'Settings', 'route' => 'settings.index', 'icon' => 'sliders', 'active' => request()->routeIs('settings.*')],
-    ];
+    $navItems = $isAdmin
+        ? [
+            ['label' => 'Overview', 'route' => 'admin.overview', 'icon' => 'bar-chart-2', 'active' => request()->routeIs('admin.overview')],
+            ['label' => 'User Management', 'route' => 'admin.users', 'icon' => 'users', 'active' => request()->routeIs('admin.users*')],
+            ['label' => 'System & Reset', 'route' => 'admin.system', 'icon' => 'database', 'active' => request()->routeIs('admin.system*')],
+        ]
+        : [
+            ['label' => 'Window Finder', 'route' => 'finder', 'icon' => 'compass', 'active' => request()->routeIs('finder*')],
+            ['label' => 'Saved Routes', 'route' => 'routes.index', 'icon' => 'route', 'active' => request()->routeIs('routes.*')],
+            ['label' => 'Inhaled Dosimetry', 'route' => 'dosimetry.index', 'icon' => 'activity', 'active' => request()->routeIs('dosimetry.*')],
+            ['label' => 'Exposure History', 'route' => 'history.index', 'icon' => 'history', 'active' => request()->routeIs('history.*')],
+            ['label' => 'Club Broadcasts', 'route' => 'broadcasts.index', 'icon' => 'megaphone', 'active' => request()->routeIs('broadcasts.*')],
+            ['label' => 'Settings', 'route' => 'settings.index', 'icon' => 'sliders', 'active' => request()->routeIs('settings.*')],
+        ];
 @endphp
 <!DOCTYPE html>
 <html lang="{{ str_replace('_', '-', app()->getLocale()) }}"
       x-data="{
           darkMode: localStorage.getItem('alveo_dark') !== null ? localStorage.getItem('alveo_dark') === 'true' : {{ $isDark ? 'true' : 'false' }},
           mobileNavOpen: false,
+          isLoading: false,
           toggleTheme() {
               this.darkMode = !this.darkMode;
               localStorage.setItem('alveo_dark', this.darkMode);
+          },
+          startLoading() {
+              this.isLoading = true;
+              this.mobileNavOpen = false;
+          },
+          handleWorkspaceClick(event) {
+              if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
+                  return;
+              }
+              const link = event.target.closest('a[href]');
+              if (!link || link.hasAttribute('download') || link.getAttribute('target') === '_blank') {
+                  return;
+              }
+              const rawHref = link.getAttribute('href') || '';
+              if (!rawHref || rawHref.startsWith('#') || rawHref.startsWith('mailto:') || rawHref.startsWith('tel:') || rawHref.startsWith('javascript:')) {
+                  return;
+              }
+              const targetUrl = new URL(link.href, window.location.origin);
+              if (targetUrl.origin !== window.location.origin || targetUrl.pathname.endsWith('/calendar/ics')) {
+                  return;
+              }
+              if (targetUrl.pathname === window.location.pathname && targetUrl.search === window.location.search && targetUrl.hash) {
+                  return;
+              }
+              this.startLoading();
+          },
+          handleWorkspaceSubmit(event) {
+              if (event.defaultPrevented) {
+                  return;
+              }
+              const form = event.target;
+              if (!form || form.getAttribute('target') === '_blank') {
+                  return;
+              }
+              this.startLoading();
           }
       }"
+      @pageshow.window="isLoading = false"
       :data-theme="darkMode ? 'alveo-dark' : 'alveo'"
       :class="{ 'dark': darkMode }">
 <head>
@@ -113,13 +157,15 @@
 </head>
 <body class="bg-slate-50/70 dark:bg-slate-950 text-slate-900 dark:text-slate-100 antialiased min-h-screen selection:bg-forest-800 selection:text-white">
 
-    <div class="min-h-screen flex flex-col lg:flex-row">
+    <div class="min-h-screen flex flex-col lg:flex-row"
+         @click="handleWorkspaceClick($event)"
+         @submit="handleWorkspaceSubmit($event)">
         <!-- Sidebar Navigation -->
         <aside class="w-full lg:w-64 lg:h-screen lg:sticky lg:top-0 bg-white dark:bg-slate-900 border-b lg:border-b-0 lg:border-r border-slate-200/90 dark:border-slate-800 flex flex-col justify-between shrink-0">
             <div class="flex-1 min-h-0 flex flex-col">
                 <!-- Brand Header: Alveo SVG Logo -->
                 <div class="h-20 px-7 flex items-center justify-between border-b border-slate-200/80 dark:border-slate-800 shrink-0">
-                    <a href="{{ route('finder') }}" class="flex items-center">
+                    <a href="{{ $isAdmin ? route('admin.overview') : route('finder') }}" class="flex items-center">
                         <img src="{{ asset('images/alveo-dark.svg') }}"
                              alt="Alveo"
                              class="h-8 w-auto logo-dark"
@@ -162,18 +208,29 @@
                             {{ $currentUser?->name ?? 'Rafif Muchsin' }}
                         </p>
                         <p class="text-xs text-slate-500 dark:text-slate-400 truncate">
-                            {{ ucfirst($currentUser?->sensitivity_profile ?? 'Standard') }} Threshold
+                            {{ $isAdmin ? 'Administrator' : ucfirst($currentUser?->sensitivity_profile ?? 'Standard').' Threshold' }}
                         </p>
                     </div>
                 </div>
 
-                <button type="button"
-                        @click="toggleTheme()"
-                        title="Toggle Light / Dark Theme"
-                        class="p-2 rounded-lg text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-800 dark:hover:text-white transition">
-                    <x-icon name="sun" x-show="darkMode" x-cloak class="w-4 h-4 text-amber-400" />
-                    <x-icon name="moon" x-show="!darkMode" class="w-4 h-4" />
-                </button>
+                <div class="flex items-center gap-1 shrink-0">
+                    <button type="button"
+                            @click="toggleTheme()"
+                            title="Toggle Light / Dark Theme"
+                            class="p-2 rounded-lg text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-800 dark:hover:text-white transition">
+                        <x-icon name="sun" x-show="darkMode" x-cloak class="w-4 h-4 text-amber-400" />
+                        <x-icon name="moon" x-show="!darkMode" class="w-4 h-4" />
+                    </button>
+
+                    <form method="POST" action="{{ route('logout') }}">
+                        @csrf
+                        <button type="submit"
+                                title="Log Out"
+                                class="p-2 rounded-lg text-slate-500 dark:text-slate-400 hover:bg-red-50 dark:hover:bg-red-950/40 hover:text-red-600 dark:hover:text-red-400 transition">
+                            <x-icon name="log-out" class="w-4 h-4" />
+                        </button>
+                    </form>
+                </div>
             </div>
         </aside>
 
@@ -212,7 +269,21 @@
 
             <!-- Page Content -->
             <main class="flex-1 p-6 lg:p-10 max-w-7xl w-full">
-                {{ $slot }}
+                <div x-show="isLoading"
+                     x-cloak
+                     class="flex flex-col items-center justify-center min-h-[55vh] text-center">
+                    <div class="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl px-8 py-7 shadow-2xs flex flex-col items-center gap-3.5 max-w-sm">
+                        <span class="loading loading-spinner loading-md text-forest-800 dark:text-forest-400"></span>
+                        <div>
+                            <p class="text-sm font-bold text-slate-900 dark:text-white">Loading workspace</p>
+                            <p class="mt-0.5 text-xs text-slate-500 dark:text-slate-400">Evaluating route and atmospheric telemetry...</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div x-show="!isLoading">
+                    {{ $slot }}
+                </div>
             </main>
         </div>
     </div>

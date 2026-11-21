@@ -1,6 +1,8 @@
 <?php
 
 use App\Http\Middleware\EnsureAccountVerified;
+use App\Http\Middleware\EnsureAdmin;
+use App\Http\Middleware\EnsureAthletePage;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -16,6 +18,8 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->trustProxies(at: '*');
         $middleware->alias([
             'verified.account' => EnsureAccountVerified::class,
+            'admin' => EnsureAdmin::class,
+            'athlete.page' => EnsureAthletePage::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {
