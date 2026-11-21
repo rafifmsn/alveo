@@ -50,7 +50,7 @@
         <!-- Load Cached Corridor Snapshot -->
         <form method="GET" action="{{ route('dosimetry.index') }}" class="flex items-center gap-2 w-full lg:w-auto shrink-0">
             <select name="route_id"
-                    onchange="this.form.submit()"
+                    onchange="this.form.requestSubmit()"
                     class="select select-bordered w-full lg:w-72 min-w-0 max-w-full bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-xs rounded-xl h-10 min-h-0">
                 @foreach ($corridors as $c)
                     <option value="{{ $c->id }}" @selected(($selectedRouteId ?? null) === $c->id)>

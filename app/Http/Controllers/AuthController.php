@@ -27,6 +27,10 @@ class AuthController extends Controller
             $request->session()->regenerate();
 
             $user = $request->user();
+            if ($user->isAdmin()) {
+                return redirect()->route('admin.overview');
+            }
+
             if (! $user->isVerified()) {
                 return redirect()->route('verification.notice');
             }
@@ -55,7 +59,8 @@ class AuthController extends Controller
         $user = User::create([
             'name' => $validated['name'],
             'email' => strtolower($validated['email']),
-            'email_verified_at' => null,
+            'email_verified_at' => now(),
+            'role' => User::ROLE_USER,
             'password' => Hash::make($validated['password']),
             'sensitivity_profile' => 'standard',
             'unit_system' => 'metric',
@@ -67,7 +72,7 @@ class AuthController extends Controller
         Auth::login($user);
         $request->session()->regenerate();
 
-        return redirect()->route('verification.notice');
+        return redirect()->route('finder');
     }
 
     public function showVerify(Request $request): View|RedirectResponse

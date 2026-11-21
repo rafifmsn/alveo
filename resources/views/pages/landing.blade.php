@@ -66,9 +66,9 @@
             </a>
 
             @auth
-                <a href="{{ route('finder') }}"
+                <a href="{{ auth()->user()->isAdmin() ? route('admin.overview') : route('finder') }}"
                    class="inline-flex items-center justify-center px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold bg-slate-100 hover:bg-forest-900 text-slate-900 hover:text-white border border-slate-200/80 transition">
-                    Open Dashboard
+                    {{ auth()->user()->isAdmin() ? 'Open Admin Panel' : 'Open Dashboard' }}
                 </a>
             @else
                 <a href="{{ route('login') }}"
@@ -110,10 +110,10 @@
             <!-- Large Hero Screen Preview Container -->
             <div class="max-w-5xl mx-auto mt-12 sm:mt-14">
                 <div class="rounded-2xl sm:rounded-3xl p-2 sm:p-3 bg-slate-100/80 border border-slate-200/90 shadow-sm overflow-hidden">
-                    <div class="rounded-xl sm:rounded-2xl overflow-hidden bg-white border border-slate-200/80 aspect-16/10">
-                        <img src="{{ asset('images/landing/hero-dashboard.svg') }}"
+                    <div class="rounded-xl sm:rounded-2xl overflow-hidden bg-[#FAFBFD] border border-slate-200/80 flex items-center justify-center p-3 sm:p-5">
+                        <img src="{{ asset('images/landing/window-finder.png') }}"
                              alt="Alveo Dashboard Window Finder Preview"
-                             class="w-full h-full object-cover object-top" />
+                             class="w-auto max-w-full max-h-[540px] rounded-xl sm:rounded-2xl mx-auto" />
                     </div>
                 </div>
             </div>
@@ -141,10 +141,10 @@
                 <div class="mt-16 sm:mt-20 grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-12 items-center">
                     <!-- Left Visual Placeholder -->
                     <div class="lg:col-span-6">
-                        <div class="rounded-3xl overflow-hidden bg-slate-50 border border-slate-200/80 aspect-6/5 shadow-2xs">
-                            <img src="{{ asset('images/landing/feature-workflow.svg') }}"
+                        <div class="rounded-3xl overflow-hidden bg-[#FAFBFD] border border-slate-200/80 aspect-[6/5] flex items-center justify-center p-4 sm:p-6 shadow-2xs">
+                            <img src="{{ asset('images/landing/exposure-planning.png') }}"
                                  alt="Alveo Corridor Dispersion Workflow"
-                                 class="w-full h-full object-cover" />
+                                 class="w-full h-full object-contain" />
                         </div>
                     </div>
 
@@ -273,10 +273,10 @@
             <div class="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-6">
                 <!-- Left Visual Card -->
                 <div class="rounded-3xl bg-slate-50/70 border border-slate-200/80 overflow-hidden flex flex-col">
-                    <div class="aspect-16/8 w-full overflow-hidden bg-slate-100 border-b border-slate-200/60">
-                        <img src="{{ asset('images/landing/card-dosimetry.svg') }}"
+                    <div class="h-64 sm:h-72 w-full overflow-hidden bg-[#FAFBFD] border-b border-slate-200/60 flex items-center justify-center p-4 sm:p-5">
+                        <img src="{{ asset('images/landing/dosimetry-guidance.png') }}"
                              alt="Instant Pulmonary Dosimetry Suggestions"
-                             class="w-full h-full object-cover" />
+                             class="max-h-full max-w-full object-contain" />
                     </div>
                     <div class="p-7 sm:p-8 space-y-2.5">
                         <h3 class="text-xl font-bold text-slate-900">
@@ -290,10 +290,10 @@
 
                 <!-- Right Visual Card -->
                 <div class="rounded-3xl bg-slate-50/70 border border-slate-200/80 overflow-hidden flex flex-col">
-                    <div class="aspect-16/8 w-full overflow-hidden bg-slate-100 border-b border-slate-200/60">
-                        <img src="{{ asset('images/landing/card-sync.svg') }}"
+                    <div class="h-64 sm:h-72 w-full overflow-hidden bg-[#FAFBFD] border-b border-slate-200/60 flex items-center justify-center p-4 sm:p-5">
+                        <img src="{{ asset('images/landing/tool_sync.png') }}"
                              alt="Seamless Calendar and Dispatch Sync"
-                             class="w-full h-full object-cover" />
+                             class="max-h-full max-w-full object-contain" />
                     </div>
                     <div class="p-7 sm:p-8 space-y-2.5">
                         <h3 class="text-xl font-bold text-slate-900">

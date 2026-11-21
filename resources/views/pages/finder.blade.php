@@ -281,7 +281,7 @@
             <!-- Preset Corridor Quick Select -->
             <div class="flex items-center gap-2 w-full md:w-auto">
                 <select name="route_id"
-                        onchange="this.form.submit()"
+                        onchange="this.form.requestSubmit()"
                         class="select select-bordered flex-1 min-w-0 max-w-full bg-slate-50/70 dark:bg-slate-800/70 border-slate-200 dark:border-slate-700 text-sm rounded-xl h-11 min-h-0">
                     <option value="">Quick Corridor Presets...</option>
                     @foreach ($corridors as $corridor)

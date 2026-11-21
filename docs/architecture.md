@@ -15,13 +15,15 @@ graph TD
         HistoryView["Workout History View (history.blade.php)"]
         BroadcastsView["Club Broadcasts View (broadcasts.blade.php)"]
         SettingsView["Settings View (settings.blade.php)"]
+        AdminViews["Admin Views (pages/admin/*.blade.php)"]
         VerifyView["Holding Gate View (verify.blade.php)"]
     end
 
     subgraph RoutingSecurity["Routing & Gatekeeper Layer"]
         WebRoutes["web.php / api.php"]
         SessionAuth["Session Guard (web)"]
-        VerifyMiddleware["EnsureAccountVerified Middleware"]
+        VerifyMiddleware["EnsureAccountVerified / EnsureAthletePage"]
+        AdminMiddleware["EnsureAdmin Middleware"]
     end
 
     subgraph ControllerLayer["Domain Controller Layer"]
@@ -31,6 +33,7 @@ graph TD
         HistoryCtrl["ExposureHistoryController"]
         BroadcastCtrl["ClubBroadcastController"]
         SettingsCtrl["SettingsController"]
+        AdminCtrl["AdminController"]
         AuthCtrl["AuthController"]
     end
 
@@ -38,6 +41,7 @@ graph TD
         ExpEngine["ExposureEngine (Window Optimizer)"]
         WeatherSvc["WeatherService (Coordinate Rounding & Cache Fetcher)"]
         DosimetryCalc["DosimetryCalculator (Pulmonary Math)"]
+        ResetSvc["DemoResetService (In-App Seed Reset)"]
     end
 
     subgraph Persistence["Storage & Database Layer (PostgreSQL 16)"]
@@ -58,8 +62,10 @@ graph TD
     Browser --> WebRoutes
     WebRoutes --> SessionAuth
     SessionAuth --> VerifyMiddleware
+    SessionAuth --> AdminMiddleware
+    AdminMiddleware -->|Admin| AdminCtrl
     VerifyMiddleware -->|email_verified_at is null| VerifyView
-    VerifyMiddleware -->|Verified| ControllerLayer
+    VerifyMiddleware -->|Verified Athlete| ControllerLayer
 
     FinderCtrl --> ExpEngine
     RouteCtrl --> ExpEngine
@@ -68,6 +74,7 @@ graph TD
     HistoryCtrl --> DosimetryCalc
     HistoryCtrl --> WeatherSvc
     BroadcastCtrl --> ExpEngine
+    AdminCtrl --> ResetSvc
 
     ExpEngine --> WeatherSvc
     ExpEngine --> DosimetryCalc
@@ -85,6 +92,7 @@ graph TD
     HistoryCtrl --> HistoryView
     BroadcastCtrl --> BroadcastsView
     SettingsCtrl --> SettingsView
+    AdminCtrl --> AdminViews
 ```
 
 ## Component Directory Cheatsheet
@@ -98,19 +106,23 @@ This cheatsheet extracts all key files in the application so you can locate doma
 * `ExposureHistoryController.php`: Handles logging and review of past workouts (`GET /history`, `POST /history`, `DELETE /history/{workout}`). Computes 7-day cumulative particulate load and compares against WHO reference ceilings.
 * `ClubBroadcastController.php`: Enables group captains to publish clean-air clearance cards (`GET /broadcasts`, `POST /broadcasts`, `DELETE /broadcasts/{broadcast}`). Handles club followers (`POST /broadcasts/{broadcast}/follow`) and generates Telegram cards.
 * `SettingsController.php`: Manages user thresholds (`GET /settings`, `PUT /settings`), unit toggles (metric/imperial), dark mode, password changes, and database cache status.
-* `AuthController.php`: Handles registration, sign-in, session destruction, and the holding page for unverified accounts (`GET /verify`).
+* `AdminController.php`: Drives the administrator control plane (`GET /admin`, `GET /admin/users`, `PATCH /admin/users/{user}/role`, `DELETE /admin/users/{user}`, `GET /admin/system`, `POST /admin/system/clear-cache`, `POST /admin/system/reset`).
+* `AuthController.php`: Handles registration (auto-verified by default), sign-in with role-aware redirects, session destruction, and the holding page for manually unverified accounts (`GET /verify`).
 
 ### Domain Services (`app/Services/`)
 * `WeatherService.php`: Manages upstream data ingestion from Visual Crossing's Timeline API. Normalizes coordinates to a 0.01 degree grid (~1.1 km), checks the PostgreSQL database cache for entries with a 60-minute TTL, and triggers upstream HTTP queries only on cache misses. Includes a deterministic diurnal model fallback for offline development.
 * `IndonesiaLocationService.php`: Provides deterministic prefix and keyword search across 7,763 Indonesian provinces, regencies/cities, and districts stored in `database/data/indonesia-locations.json` with coordinates at every administrative level.
 * `ExposureEngine.php`: Evaluates contiguous duration windows (30, 60, 90, 120 minutes) across upcoming daylight training hours (06:00 to 18:00). Computes penalty scores factoring PM2.5, Ozone, and UV index. Outputs the recommended window, calculates exposure drop percentages, generates human-readable meteorological briefs, and constructs RFC 5545 iCalendar files and Google Calendar URLs.
 * `DosimetryCalculator.php`: Implements physiological minute-ventilation calculations across Heart Rate Zones 0 through 5. Converts raw PM2.5 concentrations to US EPA Index (1-6) and UK Defra Index (1-10) using official band tables. Calculates total air volume ventilated and net particulate retention in micrograms.
+* `DemoResetService.php`: Wipes domain tables, cache entries, and non-active user accounts inside a transaction, then re-runs `DatabaseSeeder` while keeping the active administrator session intact.
 
 ### Middleware & Security (`app/Http/Middleware/`)
-* `EnsureAccountVerified.php`: Protects all application routes except authentication endpoints. Intercepts authenticated users whose `email_verified_at` column is null and redirects them to the `/verify` notice page.
+* `EnsureAccountVerified.php`: Protects athlete routes except authentication endpoints. Intercepts authenticated users whose `email_verified_at` column is null and redirects them to `/verify`.
+* `EnsureAdmin.php`: Protects `/admin/*` endpoints. Redirects non-administrators on `GET` requests to `/finder` and aborts non-GET mutations or JSON calls with HTTP `403`.
+* `EnsureAthletePage.php`: Enforces UI separation on athlete `GET` pages by redirecting administrators to `/admin`.
 
 ### Eloquent Models (`app/Models/`)
-* `User.php`: Stores athlete identity, hashed credentials, sensitivity profile (`sensitive`, `standard`, `tolerant`), unit system, workout preferences, and dark mode preference.
+* `User.php`: Stores athlete and administrator identity, `role` (`user` or `admin`), hashed credentials, sensitivity profile (`sensitive`, `standard`, `tolerant`), unit system, workout preferences, and dark mode preference.
 * `SavedRoute.php`: Represents geographic outdoor corridors with name, region, coordinates, distance, sport type, and verified preset flag.
 * `WorkoutLog.php`: Stores completed outdoor training sessions with ambient air quality readings, ventilation rate, total air volume, retained PM2.5 dose, and exertion risk scores.
 * `ClubBroadcast.php`: Stores club clearance announcements with optimal window timestamps, projected PM2.5 readings, percentage improvements, and captain notes.
@@ -154,22 +166,18 @@ Inhaled PM2.5 Dose (ug) = Air Volume (m3) x Ambient PM2.5 (ug/m3) x Deposition F
 
 The application requires only five relational tables plus Laravel system tables.
 
-* `users`: Primary account credentials, email verification timestamp, sensitivity thresholds (`standard` = 35.0 µg/m³, `sensitive` = 25.0 µg/m³, `tolerant` = 50.0 µg/m³), and UI preferences.
-* `saved_routes`: Preset corridors (GBK, Sudirman, PIK Loop, BSD, UI Depok, Kelapa Gading) and custom user-created training loops with coordinates and loop distance.
+* `users`: Primary account credentials, `role` (`user` or `admin`), email verification timestamp, sensitivity thresholds (`standard` = 35.0 µg/m³, `sensitive` = 25.0 µg/m³, `tolerant` = 50.0 µg/m³), and UI preferences.
+* `saved_routes`: Preset corridors (GBK Outer Perimeter, Sudirman Corridor, PIK Coastal Loop) and custom user-created training loops with coordinates and loop distance.
 * `workout_logs`: Completed athletic sessions linked to users and routes, storing calculated air volume and microgram particulate retention.
 * `club_broadcasts`: Training clearances published by club captains containing optimal time windows, improvement percentages, custom dispatch notes, and a denormalized `followers_count` counter cache.
 * `club_broadcast_follows`: Join table tracking which athletes follow specific club dispatches, used for toggle states and incrementing or decrementing the broadcast counter cache.
 * `cache` and `cache_locks`: Native Laravel database cache tables storing normalized weather snapshots.
 * `sessions`: Database-backed HTTP session table ensuring authenticated sessions persist across container restarts.
 
-## Verification Gatekeeper Lifecycle
+## Role Separation & Account Verification Lifecycle
 
-To prevent automated bot abuse of API keys while avoiding SMTP mail server maintenance, Alveo uses manual database-level verification.
+Alveo separates athlete and administrator views without requiring SMTP mail infrastructure:
 
-1. **User Registration:** An athlete signs up via `/register`. The account is created with `email_verified_at = null`.
-2. **Access Redirection:** The `verified.account` middleware checks all requests to protected routes.
-   If `email_verified_at` is null, the user is redirected to `/verify`.
-3. **The Holding Screen (`/verify`):** The athlete sees a verification required card with an explanation to allow 24-48 hours.
-   A `mailto:` button generates a pre-filled clearance request email to the administrator.
-4. **Administrator Clearance:** The administrator opens the Adminer web UI (`http://localhost:8080`), navigates to the `users` table, and sets `email_verified_at` using `now()` or any valid timestamp.
-5. **Instant Access:** Upon page refresh, the middleware allows the athlete through to the Window Finder.
+1. **User Registration:** An athlete signs up via `/register`. The account is created with `role = 'user'` and `email_verified_at = now()`, granting immediate access to `/finder` for evaluation and testing.
+2. **Verification Guard:** If an account has `email_verified_at = null`, the `verified.account` middleware redirects it to `/verify`.
+3. **Administrator Separation:** Accounts with `role = 'admin'` land on `/admin`, where `EnsureAdmin` blocks non-administrators and `EnsureAthletePage` redirects administrators away from athlete `GET` screens.

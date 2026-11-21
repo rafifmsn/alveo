@@ -23,4 +23,16 @@ return [
         'store' => env('APP_MAINTENANCE_STORE', 'database'),
     ],
     'admin_contact_email' => env('ADMIN_CONTACT_EMAIL', 'admin@alveo.id'),
+    'seed' => [
+        'admin' => [
+            'name' => env('SEED_ADMIN_NAME', 'Alveo Admin'),
+            'email' => env('SEED_ADMIN_EMAIL', 'admin@alveo.id'),
+            'password' => env('SEED_ADMIN_PASSWORD', 'password'),
+        ],
+        'user' => [
+            'name' => env('SEED_USER_NAME', 'Rafif Muchsin'),
+            'email' => env('SEED_USER_EMAIL', 'rafif@alveo.id'),
+            'password' => env('SEED_USER_PASSWORD', 'password'),
+        ],
+    ],
 ];

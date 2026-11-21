@@ -24,26 +24,25 @@ Alveo uses PostgreSQL database caching (`CACHE_STORE=database`) with coordinate 
 * **60-Minute Time-To-Live:** Atmospheric dispersion changes on hourly timescales.
   A 60-minute database cache TTL guarantees fresh micro-meteorological data while conserving Visual Crossing's 1,000 records/day Free quota.
 
-## Manual Account Verification Gate and Seeded Data Architecture
+## Account Verification Default, Role Separation, and Seeded Data Architecture
 
-The application requires administrator account verification prior to dashboard access, implemented without outbound SMTP mail dependencies.
+The application handles authentication and seeded demonstration state without outbound SMTP mail dependencies.
 
 * **Zero SMTP DevOps Debt:** Setting up production email delivery requires domain reputation warmup, SPF/DKIM/DMARC records, and third-party transactional mail services.
-  Alveo eliminates this overhead by omitting mandatory email verification tokens and handling activation at the database layer.
-* **API Quota Protection:** Because Visual Crossing provides 1,000 records per day on the free tier, allowing automated public registrations could expose the application to malicious scraping or quota exhaustion.
-  New registrations default to `email_verified_at = null` and are held at the `/verify` screen.
-* **Direct Database Administration (Adminer):** Rather than maintaining custom CLI commands that require server terminal access and routine maintenance, administrators verify accounts directly using Adminer (`127.0.0.1:8080`) by setting `email_verified_at = now()`.
-* **Seeded Data Architecture:**
-  * `rafif@alveo.id` (Verified): Pre-verified athlete account for immediate exploration of all 6 Blade screens.
-  * `pending@alveo.id` (Unverified): Pre-seeded unverified account for end-to-end testing of the `/verify` holding screen and manual `mailto:` request link.
-  * Verified Hotspots: Six pre-configured Greater Jakarta running and cycling corridors (GBK Outer Perimeter, Sudirman Corridor, PIK Coastal Loop, BSD Green Boulevard, UI Depok Forest Trail, and Kelapa Gading Loop) with realistic distances and surface metadata.
-  * Historical Logs and Dispatches: Pre-seeded training logs and club broadcasts demonstrating the 7-day exposure charts and Telegram dispatch formatting.
+  Alveo eliminates this overhead by omitting email token flows.
+* **Verified-by-Default Registration for Evaluation:** New registrations set `email_verified_at = now()` so evaluators can sign up and immediately test `/finder`, while `EnsureAccountVerified` remains in place for any manually unverified account (`email_verified_at = null`).
+* **Role-Based Panel Separation:** Administrators (`role = 'admin'`) access `/admin`, `/admin/users`, and `/admin/system` via `EnsureAdmin`, while `EnsureAthletePage` redirects administrators away from athlete `GET` screens to keep actor flows cleanly separated.
+* **Environment-Driven Seeded Data Architecture:**
+  * Admin Account (`SEED_ADMIN_EMAIL`, default `admin@alveo.id`): Pre-seeded administrator for aggregate telemetry, user role/account management, cache clearing, and system reset.
+  * Athlete Account (`SEED_USER_EMAIL`, default `rafif@alveo.id`): Pre-verified athlete account with sample workout logs and a club broadcast.
+  * Verified Hotspots: Three pre-configured Greater Jakarta running and cycling corridors (GBK Outer Perimeter, Sudirman Corridor, and PIK Coastal Loop) with realistic distances and surface metadata.
+  * Historical Logs and Dispatches: Pre-seeded training logs and one club broadcast (`Senayan Dawn Runners`) with one matching `club_broadcast_follows` row so `followers_count` matches relational state.
 
 ## Denormalized Follower Counter Cache in Club Broadcasts
 
 Club broadcasts use a denormalized integer counter column (`followers_count`) alongside a relational join table (`club_broadcast_follows`).
 
 * **O(1) Feed Listing Performance:** Querying active club clearances on the broadcast feed does not require executing dynamic `COUNT(*)` aggregations or group-by join queries for every card on page load.
-* **Realistic Seeding Without User Bloat:** Community clubs in the initial database seeder carry realistic baseline followings (such as 42 members in Senayan Dawn Runners) without generating dozens of dummy user records in the `users` table.
+* **Relational Consistency on Seed:** The initial database seeder seeds one broadcast authored by the default athlete with `followers_count = 1` and a corresponding row in `club_broadcast_follows`.
 * **Atomic Increment and Decrement:** When an active user clicks Follow or Unfollow, the system updates the `club_broadcast_follows` pivot table for ownership checks and atomically increments or decrements `followers_count` in a single transaction.
 
